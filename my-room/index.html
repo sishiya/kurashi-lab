@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
 <script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
 <meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
-<link rel="stylesheet" href="css/style.css?v=14">
+<link rel="stylesheet" href="css/style.css?v=16">
 </head>
 <body data-tab="2d">
 <header class="top">
@@ -44,7 +44,7 @@
       <p class="eNote">画像やスキャンは、ここに落としても読みこめます。どれも外には送りません。</p>
     </div>
     <div class="zoom" id="zoom">
-      <button id="zIn" aria-label="大きく">＋</button><button id="zOut" aria-label="小さく">－</button><button id="zFit" aria-label="全体を表示">全体</button>
+      <button id="zIn" aria-label="大きく">＋</button><button id="zOut" aria-label="小さく">－</button><button id="zFit" aria-label="全体を表示">全体</button><button id="shot" aria-label="いまの図を画像で保存" title="いまの図を画像で保存（この端末に）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
     </div>
     <div class="drop" id="drop" hidden>ここに放すと読みこみます</div>
   </div>
@@ -52,7 +52,7 @@
   <!-- 図のすぐ下: そのタブの道具（1行） -->
   <div class="tools" id="tools">
     <div class="seg" role="group" aria-label="道具">
-      <button data-tool="trace" class="on">なぞる</button><button data-tool="select">動かす</button><button data-tool="open">ドア・窓</button><button data-tool="tape">メジャー</button>
+      <button data-tool="trace" class="on" title="なぞる（1）">なぞる</button><button data-tool="select" title="動かす（2）">動かす</button><button data-tool="open" title="ドア・窓（3）">ドア・窓</button><button data-tool="tape" title="メジャー（4）">メジャー</button>
     </div>
     <select id="openKind" aria-label="置くものの種類" hidden></select>
     <button class="chip on" id="straight" title="線を水平・垂直にそろえる（Shift を押している間ははずれます）">まっすぐ</button>
@@ -88,7 +88,7 @@
     <div class="wtop">
       <span class="seg sm" role="group" aria-label="地図"><button data-wview="signal">電波の強さ</button><button data-wview="good">置き場所の良さ</button></span>
       <button id="wFind" class="pri">いちばん良い置き場所を探す</button>
-      <span class="legend" aria-hidden="true"><i></i><span>−85</span><span>−75</span><span>−67</span><span>−55 dBm</span></span>
+      <span class="legend" aria-hidden="true"><i></i><span>弱い</span><span>−75</span><span>−67</span><span>強い</span></span>
     </div>
     <div id="wBody"></div>
   </div>
@@ -145,7 +145,8 @@
   <section data-tabs="2d">
     <h2>縮尺</h2>
     <p id="scaleState" class="state"></p>
-    <p class="hint small">部屋をえらんで「帖」を入れると<b class="est">推定</b>、「メジャー」で1か所測ると<b class="meas">測った値</b>になります。</p>
+    <label class="range">専有面積（広告の㎡） <input type="number" id="area" min="5" max="1000" step="0.01" inputmode="decimal" placeholder="例 45.3"> ㎡</label>
+    <p class="hint small">家の部屋をぜんぶなぞったら、広告の専有面積を入れると縮尺が決まります（<b class="est">推定</b>）。部屋に「帖」を入れても<b class="est">推定</b>、「メジャー」で1か所測ると<b class="meas">測った値</b>になります。</p>
   </section>
 
   <section data-tabs="2d 3d sun">
@@ -196,6 +197,12 @@
     </div>
     <p class="hint small">運ぶ先は、図の部屋を押してもえらべます。境目は、両側のすき間の合計がこれより小さいと「ぎりぎり」にします。</p>
     <div id="mNotes"></div>
+  </section>
+  <section data-tabs="move">
+    <h2>覚えた家具</h2>
+    <div class="mine" id="mineList"></div>
+    <div class="row"><input type="text" id="mineName" maxlength="16" placeholder="名前（例 ソファー）" aria-label="覚える家具の名前"><button id="mineAdd">いまの大きさを覚える</button></div>
+    <p class="hint small">家にある家具・買いたい家具の大きさを覚えておくと、上の家具の欄からすぐ呼び出せます。</p>
   </section>
 
   <!-- 日差し -->
@@ -329,16 +336,16 @@
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastUndo" hidden>元に戻す</button></div>
 
 <script src="../lib/three@0.128.0/build/three.min.js"></script>
-<script src="js/model.js?v=8"></script>
+<script src="js/model.js?v=9"></script>
 <script src="js/plan.js?v=10"></script>
 <script src="js/view3d.js?v=8"></script>
 <script src="js/wifi-sim.js?v=5"></script>
 <script src="js/wifi.js?v=6"></script>
-<script src="js/move.js?v=7"></script>
-<script src="js/sun.js?v=4"></script>
+<script src="js/move.js?v=9"></script>
+<script src="js/sun.js?v=6"></script>
 <script src="js/scan.js?v=6"></script>
 <script src="js/scan-walls.js?v=5"></script>
-<script src="js/ui.js?v=14"></script>
+<script src="js/ui.js?v=15"></script>
 <script src="js/main.js?v=5"></script>
 </body>
 </html>

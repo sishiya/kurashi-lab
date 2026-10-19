@@ -84,7 +84,8 @@ async function moveRun() {
   if (!M.rooms.length) { MV.msg = '先に「図面」で部屋をなぞってください。'; moveRender(); return; }
   if (!room) { MV.msg = '運ぶ先の部屋を押してください。'; moveRender(); return; }
   const ori = orientations(), ent = entranceInfo(Math.max(...ori.map(o => o.a)));
-  if (!ent) { MV.msg = '「図面」の「ドア・窓」で、玄関を置いてください（ここから運びこみます）。'; moveRender(); return; }
+  if (!ent) { MV.msg = ''; MV.need = 'entrance'; moveRender(); return; }
+  MV.need = null;
   const key = moveKey(), polys = M.rooms.map(r => r.pts.map(p => [p[0] * s, p[1] * s]));
   const all = polys.flat().concat(ent.porch);
   const x0 = Math.min(...all.map(p => p[0])) - 0.05, y0 = Math.min(...all.map(p => p[1])) - 0.05;
@@ -138,6 +139,21 @@ function crossedGaps(r) {           // 道が通ったドア（推定の幅が�
   }
   return out.filter(Boolean);
 }
+// いちばんせまい所の近くの開口の名前（例「廊下と洋室の間のドア」）
+function bottleneckName(p) {
+  if (!p) return '';
+  const s = scaleInfo().s; let best = null;
+  for (const o of M.opens) {
+    if (!doorPass(o.kind)) continue;
+    const G = openGeom(o); if (!G) continue;
+    const d = Math.hypot(G.c[0] * s - p[0], G.c[1] * s - p[1]);
+    if (!best || d < best.d) best = { d, o, G };
+  }
+  if (!best || best.d > 1.2) return '';
+  const r = byId(M.rooms, best.o.room), far = [best.G.c[0] - best.G.n[0] * 30 / P.z, best.G.c[1] - best.G.n[1] * 30 / P.z];
+  const other = M.rooms.find(x => x !== r && inPoly(far, x.pts));
+  return best.o.kind === 'entrance' ? '玄関' : other ? `${r.name}と${other.name}の間の${OPEN_KINDS[best.o.kind]}` : `${r.name}の${OPEN_KINDS[best.o.kind]}`;
+}
 function bottleneck(r) {
   if (!r || !r.path || !r.path.length) return null;
   let m = r.path[0];
@@ -148,7 +164,16 @@ function moveProg() { const el = $('mProgN'); if (el) el.textContent = MV.pops ?
 function moveRender() {
   const box = $('moveBar'); if (!box) return;
   box.hidden = !moveOn(); if (!moveOn()) return;
-  const fp = $('fPreset'); if (document.activeElement !== fp) fp.value = M.move.preset || '';
+  const fp = $('fPreset');
+  fp.innerHTML = '<option value="">大きさを入れる</option>' + (M.move.mine.length ? '<optgroup label="覚えた家具">' + M.move.mine.map((f, i) => `<option value="mine:${i}">${esc(f.name)}（${Math.round(f.w * 100)}×${Math.round(f.d * 100)}×${Math.round(f.h * 100)}）</option>`).join('') + '</optgroup>' : '') +
+    '<optgroup label="よくある大きさ（目安）">' + Object.entries(FURN).map(([k, f]) => `<option value="${k}">${f.name}</option>`).join('') + '</optgroup>';
+  fp.value = M.move.preset || '';
+  $('mineList').innerHTML = M.move.mine.length ? M.move.mine.map((f, i) => `<button class="chip${M.move.preset === 'mine:' + i ? ' on' : ''}" data-mine="${i}">${esc(f.name)} <span class="x" data-del="${i}" role="button" aria-label="${esc(f.name)}を消す">×</span></button>`).join('') : '<p class="hint small">まだありません。</p>';
+  document.querySelectorAll('[data-mine]').forEach(b => b.onclick = e => {
+    const i = +b.dataset.mine;
+    if (e.target.dataset.del != null) { const nm = M.move.mine[i].name; edit(() => { M.move.mine.splice(i, 1); if (M.move.preset.startsWith('mine:')) M.move.preset = ''; }, `「${nm}」を消しました`); return; }
+    const f = M.move.mine[i]; edit(() => { M.move.preset = 'mine:' + i; M.move.w = f.w; M.move.d = f.d; M.move.h = f.h; });
+  });
   for (const [id, k] of [['fW', 'w'], ['fD', 'd'], ['fH', 'h']]) { const el = $(id); if (document.activeElement !== el) el.value = Math.round(M.move[k] * 100); }
   const mg = $('fMargin'); if (document.activeElement !== mg) mg.value = Math.round(M.move.margin * 100);
   const tg = $('fTarget');
@@ -157,6 +182,7 @@ function moveRender() {
   let html = '', notes = [];
   const stale = MV.res && MV.key !== moveKey();
   if (MV.running) html = `<div class="wprog"><span>${esc(MV.prog)}…<span id="mProgN"></span></span><button id="mStop">やめる</button></div>`;
+  else if (MV.need === 'entrance' && !M.opens.some(o => o.kind === 'entrance')) html = '<p class="wmsg">玄関から運びこむので、先に玄関を置いてください。 <button id="mGoEnt" class="pri">玄関を置く</button></p>';
   else if (MV.msg) html = `<p class="wmsg">${esc(MV.msg)}</p>`;
   else if (!M.move.target) html = '<p class="wmsg">運ぶ先の部屋を、図の上で押してください。</p>';
   else if (!MV.res || stale) html = `<p class="wmsg">${stale ? '家具か模型が変わりました。もう一度「調べる」を押してください。' : '「調べる」を押すと、玄関の外から運びこめるかを調べます。'}</p>`;
@@ -164,9 +190,9 @@ function moveRender() {
     const R = MV.res, r = R.results[MV.pick], v = verdict(R.best);
     const bn = bottleneck(r);
     html = `<p class="mv mv-${v.k}"><b>${v.text}</b>` +
-      (R.best ? `${esc(R.best.label)}（高さ ${Math.round(R.best.hgt * 100)}cm）で、いちばんせまい所のすき間は約 ${Math.max(0, Math.floor(R.best.clear * 200))}cm（両側）` +
+      (R.best ? `${esc(R.best.label)}（高さ ${Math.round(R.best.hgt * 100)}cm）で、いちばんせまい所${(n => n ? `（${esc(n)}）` : '')(bottleneckName(bottleneck(R.best)))}のすき間は約 ${Math.max(0, Math.floor(R.best.clear * 200))}cm（両側）` +
         (v.k === 'tight' ? `。余裕 ${Math.round(M.move.margin * 100)}cm まであと ${Math.ceil((M.move.margin - R.best.clear * 2) * 100)}cm` : '')
-        : 'どの寝かせ方でも通れません。赤い × の所でつかえます') + '</p>';
+        : `どの寝かせ方でも通れません。赤い × の所${(n => n ? `（${esc(n)}）` : '')(bottleneckName(r.stuck))}でつかえます`) + '</p>';
     html += '<div class="mori">' + R.results.map((x, i) => { const vv = verdict(x); return `<button data-pick="${i}" class="chip${i === MV.pick ? ' on' : ''}">${esc(x.label)}・${vv.text}${x.ok ? ` ${Math.floor(x.clear * 200)}cm` : x.why ? '（天井）' : ''}</button>`; }).join('') + '</div>';
     if (r.path && r.path.length > 1) html += `<div class="mslide"><button id="mPlay" class="play" aria-label="運ぶようすを再生"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MV.anim ? 'M6 4h4v16H6zM14 4h4v16h-4z' : 'M7 4v16l13-8z'}"/></svg></button><input type="range" id="mT" min="0" max="1000" value="${Math.round(MV.t * 1000)}" aria-label="運ぶようす"></div>`;
     const est = crossedGaps(r).filter(o => !o.w);
@@ -179,6 +205,7 @@ function moveRender() {
   $('mBody').innerHTML = html;
   $('mNotes').innerHTML = notes.map(n => `<p class="why">${esc(n)}</p>`).join('');   // 注意は右の欄へ
   if ($('mStop')) $('mStop').onclick = moveStop;
+  if ($('mGoEnt')) $('mGoEnt').onclick = () => goPlace('entrance', 'move');
   document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { MV.pick = +b.dataset.pick; MV.t = MV.res.results[MV.pick].ok ? 1 : 0; moveRender(); requestDraw(); });
   if ($('mT')) $('mT').oninput = e => { movePlay(false); MV.t = e.target.value / 1000; requestDraw(); };
   if ($('mPlay')) $('mPlay').onclick = () => movePlay(!MV.anim);
@@ -264,8 +291,16 @@ P.exts.push({
 });
 
 function moveInit() {
-  $('fPreset').innerHTML = '<option value="">大きさを入れる</option>' + Object.entries(FURN).map(([k, f]) => `<option value="${k}">${f.name}</option>`).join('');
-  $('fPreset').onchange = e => edit(() => { const f = FURN[e.target.value]; M.move.preset = e.target.value; if (f) { M.move.w = f.w / 100; M.move.d = f.d / 100; M.move.h = f.h / 100; } });
+  $('fPreset').onchange = e => edit(() => {
+    const v = e.target.value, f = v.startsWith('mine:') ? M.move.mine[+v.slice(5)] : FURN[v];
+    M.move.preset = v;
+    if (f) { const k = v.startsWith('mine:') ? 1 : 100; M.move.w = f.w / k; M.move.d = f.d / k; M.move.h = f.h / k; }
+  });
+  $('mineAdd').onclick = () => {   // いまの大きさを名前つきで覚える
+    const nm = $('mineName').value.trim() || (FURN[M.move.preset] ? FURN[M.move.preset].name : '家具' + (M.move.mine.length + 1));
+    edit(() => { M.move.mine.push({ name: nm, w: M.move.w, d: M.move.d, h: M.move.h }); M.move.preset = 'mine:' + (M.move.mine.length - 1); });
+    $('mineName').value = ''; toast(`「${nm}」を覚えました`);
+  };
   for (const [id, k] of [['fW', 'w'], ['fD', 'd'], ['fH', 'h']]) $(id).onchange = e => edit(() => { const v = cmIn(e.target.value); if (v) { M.move[k] = v; M.move.preset = ''; } });
   $('fMargin').onchange = e => edit(() => { const v = parseFloat(e.target.value); M.move.margin = isFinite(v) && v >= 0 ? v / 100 : 0.05; });
   $('fTarget').onchange = e => edit(() => { M.move.target = e.target.value || null; });
