@@ -29,8 +29,10 @@ let M = newModel();          // 模型（保存するのはこれ）
 let IMG = null;              // 下じきの画像 { el: HTMLImageElement, url: dataURL }（M.img に大きさ）
 
 function newModel() {
-  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1 };
+  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1, wifi: newWifi() };
 }
+// WiFi（段階B）: ルーターとよく使う場所は u の点。wallMat は「部屋id:辺」ごとに変えた材料
+function newWifi() { return { router: null, freq: '2.4', house: 'rc', spots: [], wallMat: {} }; }
 const newId = p => p + (M.nextId++);
 const byId = (list, id) => list.find(o => o.id === id);
 
@@ -85,6 +87,8 @@ function rotatePlan(deg) {
   const rot = p => { const x = p[0] - c[0], y = p[1] - c[1]; return [c[0] + x * co - y * si, c[1] + x * si + y * co]; };
   for (const r of M.rooms) r.pts = r.pts.map(rot);
   for (const t of M.tapes) { t.a = rot(t.a); t.b = rot(t.b); }
+  if (M.wifi.router) M.wifi.router = rot(M.wifi.router);
+  for (const sp of M.wifi.spots) sp.p = rot(sp.p);
   let d = (M.imgRot || 0) + deg;
   while (d > 180) d -= 360; while (d <= -180) d += 360;
   M.imgRot = Math.round(d * 1000) / 1000;
@@ -150,7 +154,7 @@ function buildWalls() {
     if (u[0] < -1e-9 || (Math.abs(u[0]) < 1e-9 && u[1] < 0)) u = [-u[0], -u[1]];
     const n = [-u[1], u[0]], off = n[0] * a[0] + n[1] * a[1];
     let ln = lines.find(l => Math.abs(l.u[0] * u[1] - l.u[1] * u[0]) < ANG && l.u[0] * u[0] + l.u[1] * u[1] > 0 && Math.abs(l.off - off) < OFF);
-    if (!ln) { ln = { u, n, off, o: [n[0] * off, n[1] * off], iv: [], opens: [] }; lines.push(ln); }
+    if (!ln) { ln = { u, n, off, o: [n[0] * off, n[1] * off], iv: [], opens: [], src: [] }; lines.push(ln); }
     return ln;
   };
   const proj = (ln, p) => (p[0] - ln.o[0]) * ln.u[0] + (p[1] - ln.o[1]) * ln.u[1];
@@ -161,6 +165,7 @@ function buildWalls() {
       const ln = lineOf(a, b); if (!ln) continue;
       const t0 = proj(ln, a), t1 = proj(ln, b);
       ln.iv.push([Math.min(t0, t1), Math.max(t0, t1)]);
+      ln.src.push({ room: r.id, edge: i, t0: Math.min(t0, t1), t1: Math.max(t0, t1) });   // どの部屋のどの辺か（外壁・間仕切りの見分けに）
       edgeRef[r.id + ':' + i] = { ln, t0, t1 };
     }
   }
@@ -231,6 +236,9 @@ function fixModel(m) {       // 読みこんだものの形をそろえる（足
   for (const k of ['rooms', 'opens', 'tapes']) if (!Array.isArray(out[k])) out[k] = [];
   out.rooms = out.rooms.filter(r => Array.isArray(r.pts) && r.pts.length >= 3);
   out.opens = out.opens.filter(o => OPEN_KINDS[o.kind] && out.rooms.some(r => r.id === o.room));
+  out.wifi = Object.assign(newWifi(), out.wifi && typeof out.wifi === 'object' ? out.wifi : {});
+  if (!Array.isArray(out.wifi.spots)) out.wifi.spots = [];
+  if (!out.wifi.wallMat || typeof out.wifi.wallMat !== 'object') out.wifi.wallMat = {};
   return out;
 }
 
@@ -272,6 +280,8 @@ function sampleModel() {
     { id: 'o6', room: 'r5', edge: 0, t: 0.5, kind: 'sliding', w: 0.8, h: null, sill: null, flip: false },
     { id: 'o7', room: 'r4', edge: 0, t: 0.5, kind: 'door', w: null, h: null, sill: null, flip: false },
   ];
+  m.wifi.router = [810, 440];   // 玄関の近く（よくある置き場所）
+  m.wifi.spots = [{ id: 's1', name: 'ソファー', p: [160, 250] }, { id: 's2', name: 'ベッド', p: [760, 120] }];
   m.nextId = 10;
   return m;
 }

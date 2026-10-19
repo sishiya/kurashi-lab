@@ -84,6 +84,26 @@ input[type=range]{accent-color:var(--accent)}
 .gBtns{display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .gBtns button,.gBtns .btn{min-height:32px;font-size:13px}
 
+/* WiFi */
+.seg.sm button{min-height:32px;padding:2px 10px;font-size:13px}
+.wifibar{margin-top:8px;font-size:14px;line-height:1.5}
+.wtop{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+.wtop #wFind{min-height:32px;font-size:13px}
+.legend{display:inline-grid;grid-template-columns:repeat(4,auto);column-gap:10px;font-size:11px;color:var(--muted);position:relative;padding-top:8px;margin-left:auto}
+.legend i{position:absolute;left:0;right:0;top:0;height:6px;border-radius:3px;background:linear-gradient(90deg,#1f296b,#385cc7 25%,#29ad9e 45%,#94de5e 70%,#ffd64d 90%,#ff8c40)}
+.wlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.wlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.wlist .why{font-size:12px;color:var(--muted)}
+.lv{font-size:11px;letter-spacing:-1px;font-family:monospace}
+.lv4,.lv3{color:#2f9e5a}.lv2{color:var(--est)}.lv1,.lv0{color:var(--danger)}
+.wsum,.wmsg{margin:6px 0 0}
+.wmsg{color:var(--muted)}
+.wprog{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:6px}
+.wprog .bar{flex-basis:100%;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.wprog .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid var(--line)}
+.wifi-explain h2{margin-bottom:4px}
+
 /* 下の説明・設定 */
 .panel{padding:8px 16px 48px;max-width:760px}
 .panel section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-top:12px}
