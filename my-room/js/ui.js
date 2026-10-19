@@ -47,7 +47,7 @@ function renderGuide() {
     btns.push(['案内', () => gotoStep(M.rooms.length ? 2 : 0)]);
   }
   if (P.tool === 'trace' && P.trace.length && U.tab === '2d') text = `${P.trace.length}点。` + (P.trace.length >= 3 ? '最初の角を押すか「部屋にする」で1部屋になります。' : 'つづけて角を押してください。');
-  if (P.tool === 'tape' && P.tapeA && U.tab === '2d') text = 'もう1点を押してください。';
+  if ((P.tool === 'tape' || P.tool === 'align') && P.tapeA && U.tab === '2d') text = 'もう1点を押してください。';
   $('gText').textContent = text;
   const box = $('gBtns'); box.innerHTML = '';
   for (const [label, fn, cls] of btns) { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; box.appendChild(b); }
@@ -59,11 +59,13 @@ function toolHint() {
     select: '角・ドア・メジャーの端はドラッグで動かせます。部屋を押すとえらべます。',
     open: `壁を押すと「${OPEN_KINDS[P.openKind]}」を置きます。`,
     tape: '長さのわかる所を2点で測ります（ドラッグ、または2回押す）。',
+    align: '下じきの壁の線にそって2点を押すと、その線が水平か垂直になるように回します。',
   }[P.tool];
 }
 
 // ---------- 道具・タブ ----------
 function setTool(t) {
+  if (t === 'align' && P.tool !== 'align') U.prevTool = P.tool;
   planSetTool(t);
   document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   $('openKind').hidden = t !== 'open';
@@ -86,10 +88,20 @@ function setTab(t) {
 // ---------- えらんだもの（図のすぐ下の1行） ----------
 function renderSel() {
   const bar = $('selbar'), s = P.sel;
-  const o = s && (s.type === 'room' ? byId(M.rooms, s.id) : s.type === 'open' ? byId(M.opens, s.id) : byId(M.tapes, s.id));
+  const o = s && (s.type === 'room' || s.type === 'vert' ? byId(M.rooms, s.id) : s.type === 'open' ? byId(M.opens, s.id) : byId(M.tapes, s.id));
   if (!o || U.tab !== '2d') { bar.hidden = true; bar.innerHTML = ''; return; }
   bar.hidden = false;
-  if (s.type === 'room') {
+  if (s.type === 'vert') {
+    const p = o.pts[s.i];
+    if (!p) { bar.hidden = true; return; }
+    bar.innerHTML = `<span class="k">角</span><span class="note">${esc(o.name)}の角。ドラッグで動かせます。</span>
+      <button id="sDel" class="danger"${o.pts.length <= 3 ? ' disabled' : ''}>この角を消す</button>
+      <span class="note">${o.pts.length <= 3 ? '三角より少なくはできません' : '同じ場所の角（となりの部屋）もいっしょに消します'}</span>`;
+    $('sDel').onclick = () => edit(() => {
+      for (const r of M.rooms) { const i = r.pts.findIndex(q => dist(q, p) < 1e-6); if (i >= 0) deleteVertex(r, i); }
+      P.sel = { type: 'room', id: o.id };
+    });
+  } else if (s.type === 'room') {
     const si = scaleInfo();
     bar.innerHTML = `<span class="k">部屋</span>
       <label>名前 <input type="text" id="sName" value="${esc(o.name)}" maxlength="20"></label>
@@ -104,12 +116,12 @@ function renderSel() {
     const d = DEF.open[o.kind], win = isWindow(o.kind), swing = o.kind === 'door' || o.kind === 'entrance';
     bar.innerHTML = `<span class="k">${OPEN_KINDS[o.kind]}</span>
       <select id="sKind" aria-label="種類">${Object.entries(OPEN_KINDS).map(([k, n]) => `<option value="${k}"${k === o.kind ? ' selected' : ''}>${n}</option>`).join('')}</select>
-      <label>幅 <input type="number" id="sW" value="${cmOut(o.w)}" placeholder="${cmOut(d.w)}" min="10" max="600" inputmode="decimal"> cm</label>
+      <label>${win ? '幅' : '通れる幅'} <input type="number" id="sW" value="${cmOut(o.w)}" placeholder="${cmOut(d.w)}" min="10" max="600" inputmode="decimal"> cm</label>
       <label>高さ <input type="number" id="sH" value="${cmOut(o.h)}" placeholder="${cmOut(d.h)}" min="10" max="400" inputmode="decimal"> cm</label>
       ${win ? `<label>床から <input type="number" id="sS" value="${cmOut(o.sill)}" placeholder="${cmOut(d.sill)}" min="0" max="300" inputmode="decimal"> cm</label>` : ''}
       ${swing ? '<button id="sFlip">開く向きを反対に</button>' : ''}
       <button id="sDel" class="danger">消す</button>
-      <span class="note">空らんは推定（ふつうの値）</span>`;
+      <span class="note">空らんは推定（ふつうの値）。${win ? '幅・高さは内のり' : '幅は枠の内がわ（通れる幅）'}</span>`;
     $('sKind').onchange = e => edit(() => { o.kind = e.target.value; });
     $('sW').onchange = e => edit(() => { o.w = cmIn(e.target.value); });
     $('sH').onchange = e => edit(() => { o.h = cmIn(e.target.value); });
@@ -141,6 +153,7 @@ function renderHouse() {
   const set = (id, v, ph) => { const el = $(id); if (document.activeElement !== el) el.value = v; if (ph != null) el.placeholder = ph; };
   set('ceil', cmOut(M.ceil), cmOut(DEF.ceil)); set('wallT', cmOut(M.wallT), cmOut(DEF.wallT)); set('floor', M.floor || 1);
   set('north', M.north || 0); $('northOut').textContent = (M.north || 0) + '°';
+  set('imgRot', M.imgRot || 0); $('rotOut').textContent = (Math.round((M.imgRot || 0) * 10) / 10) + '°';
 }
 function renderTable() {
   const si = scaleInfo(), est = si.src !== 'tape' && si.src !== 'grid', rows = [];
@@ -163,7 +176,7 @@ function changed(opts = {}) {
     const ok = saveLocal(U.prefs.saveImg);
     $('saveState').textContent = ok ? 'この端末に保存しています。' : '保存できませんでした（容量がいっぱいか、保存できない設定です）。「画像もいっしょに保存する」をはずすと入ることがあります。';
   } else $('saveState').textContent = 'この端末には保存していません。閉じると消えます。';
-  $('imgRow').hidden = !IMG;
+  $('imgRow').hidden = $('rotRow').hidden = !IMG;
   renderSel(); renderScale(); renderHouse(); renderTable(); renderHist(); renderTrace(); renderGuide();
   requestDraw();
   if (U.tab === '3d') viewBuild(opts.refit); else U.stale3d = true;
@@ -241,12 +254,24 @@ function uiInit() {
     toast(`「${r.name}」ができました`);
     if (U.guideOn && U.step === 1 && M.rooms.length === 1) toast('つづけて部屋をなぞるか、「つぎへ」で縮尺へ');
   };
+  P.onAlign = (a, b) => {
+    const d = alignDelta(a, b);
+    if (Math.abs(d) < 0.05) toast('もうまっすぐです');
+    else { edit(() => rotatePlan(d)); toast(`${d > 0 ? '右' : '左'}に ${Math.abs(d).toFixed(1)}° 回しました`); }
+    setTool(U.prevTool || 'trace');
+  };
   P.onTapeDone = () => setTimeout(() => { const el = $('sM'); if (el) el.focus(); }, 0);
 
   $('imgFile').onchange = e => { const f = e.target.files[0]; if (f) useImage(URL.createObjectURL(f)); e.target.value = ''; };
   $('sample').onclick = loadSample;
   $('imgAlpha').oninput = e => { P.imgAlpha = +e.target.value; requestDraw(); };
   $('imgDel').onclick = () => { IMG = null; changed(); };
+  $('rotL').onclick = () => edit(() => rotatePlan(-90));
+  $('rotR').onclick = () => edit(() => rotatePlan(90));
+  $('rotAlign').onclick = () => { setTab('2d'); setTool('align'); };
+  $('imgRot').onpointerdown = () => commit();
+  $('imgRot').oninput = e => { rotatePlan(+e.target.value - (M.imgRot || 0)); $('rotOut').textContent = M.imgRot + '°'; requestDraw(); };
+  $('imgRot').onchange = () => changed();
   document.addEventListener('paste', e => {
     const it = [...(e.clipboardData || {}).items || []].find(i => i.type.startsWith('image/'));
     if (it) { e.preventDefault(); useImage(URL.createObjectURL(it.getAsFile())); }

@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
 <script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
 <meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
-<link rel="stylesheet" href="css/style.css?v=1">
+<link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
 <header class="top">
@@ -62,6 +62,13 @@
     <div class="row" id="imgRow" hidden>
       <label class="range">下じきの濃さ <input type="range" id="imgAlpha" min="0.1" max="1" step="0.05" value="0.55"></label>
       <button id="imgDel">画像を外す</button>
+    </div>
+    <div id="rotRow" hidden>
+      <p class="hint small">間取り図がかたむいているときは回して、壁を水平・垂直にそろえます（なぞった角もいっしょに回ります）。</p>
+      <div class="row">
+        <button id="rotAlign" class="pri">壁の線で合わせる</button><button id="rotL">左に90°</button><button id="rotR">右に90°</button>
+      </div>
+      <label class="range">細かく <input type="range" id="imgRot" min="-180" max="180" step="0.1"> <output id="rotOut"></output></label>
     </div>
   </section>
 
@@ -121,7 +128,8 @@
       <ul>
         <li>壁の厚さはどこも同じです（家ぜんたいで変えられます）。床は水平、天井はどの部屋も同じ高さです。</li>
         <li>帖から出した縮尺は<b class="est">推定</b>です。1帖の広さは物件によって 1.62㎡ より広いこともあるので、メジャーで1か所測ると確かになります。</li>
-        <li>ドアの幅・窓の大きさ・天井の高さ・壁の厚さの初期値は<b class="est">目安</b>です（建築の資料でまだ確かめていません）。測った値に置きかえてください。</li>
+        <li>測っていない寸法は、ふつうの値を<b class="est">推定</b>として使います。ドアの幅は国の指針の「最低これくらい」、窓の大きさはサッシの規格の1つで、どの家もこの大きさとはかぎりません。天井の高さ（2.4m）・壁の厚さ（12cm）・ドアの高さ（2.0m）・窓の床からの高さ（90cm）は<b class="est">目安</b>です（規格や法律の値ではありません）。測った値に置きかえてください。</li>
+        <li>ドアの「幅」は通れる幅（有効幅）、窓の幅・高さは内のりです。壁はこの幅で抜いていて、枠の厚みは入れていません。</li>
         <li>3D の影は見やすくするための光です（※ 目印。本物の太陽の向きではありません）。</li>
       </ul>
     </details>
@@ -129,6 +137,9 @@
       <summary>おもな出どころ</summary>
       <ul class="src">
         <li>1帖＝1.62㎡ 以上（各室の壁心面積 ÷ 畳数）: 不動産の表示に関する公正競争規約施行規則 第10条（16）。条文の内容は <a href="https://smtrc.jp/useful/glossary/detail/n/3751" target="_blank" rel="noopener">三井住友トラスト基礎研究所の不動産用語集</a>（「本間（京間）」の項）で確かめました（2026-10-19。規約の原文とはまだ照らしていません）。</li>
+        <li>ドアの幅 75cm・玄関の幅 80cm: <a href="https://www.mlit.go.jp/notice/noticedata/sgml/2001/26aa2661/26aa2661.html" target="_blank" rel="noopener">高齢者が居住する住宅の設計に係る指針</a>（平成13年国土交通省告示第1301号）の、住戸内の出入口の有効幅員（基本レベル 750mm 以上・推奨レベル 800mm 以上）。</li>
+        <li>窓の幅 165cm・高さ 110cm、掃き出し窓の高さ 200cm: <a href="https://www.jsma.or.jp/Portals/0/images/useful/houreikijun/kikakusunpo(20210426).pdf" target="_blank" rel="noopener">日本サッシ協会「標準規格寸法」</a>（2021年4月）の、内のり高さの基準寸法と、関東間の幅 1650mm の例。</li>
+        <li>居室の天井の高さは 2.1m 以上（建築基準法施行令 第21条）。2.4m はそれより高い目安です。</li>
       </ul>
     </details>
     <details>
@@ -149,10 +160,10 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="../lib/three@0.128.0/build/three.min.js"></script>
-<script src="js/model.js?v=1"></script>
-<script src="js/plan.js?v=1"></script>
-<script src="js/view3d.js?v=1"></script>
-<script src="js/ui.js?v=1"></script>
-<script src="js/main.js?v=1"></script>
+<script src="js/model.js?v=2"></script>
+<script src="js/plan.js?v=2"></script>
+<script src="js/view3d.js?v=2"></script>
+<script src="js/ui.js?v=2"></script>
+<script src="js/main.js?v=2"></script>
 </body>
 </html>
