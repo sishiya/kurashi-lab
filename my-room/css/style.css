@@ -120,6 +120,16 @@ input[type=range]{accent-color:var(--accent)}
 .mslide input{flex:1}
 #mBody .why{font-size:12px;color:var(--muted);margin:2px 0}
 
+/* 日差し */
+.srange{flex:1 1 150px;min-width:140px}
+.srange input{flex:1;min-width:0}
+.srange output{min-width:4.5em;font-weight:700;font-variant-numeric:tabular-nums}
+.seasons{display:inline-flex;flex-wrap:wrap;gap:4px}
+#sEave{width:4.2em}
+.sinfo{margin:6px 0 2px}
+.sinfo .why{font-size:12px;color:var(--muted);margin-left:4px}
+#sBody .why{font-size:12px;color:var(--muted);margin:2px 0}
+
 /* 下の説明・設定 */
 .panel{padding:8px 16px 48px;max-width:760px}
 .panel section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-top:12px}
@@ -171,6 +181,6 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
   .panel section{padding:10px 12px}
   /* 上に固定する部分が画面より高くならないように */
   .stage{max-height:100vh;overflow-y:auto;overscroll-behavior:contain}
-  body[data-tab="wifi"] .view,body[data-tab="move"] .view{height:36vh;min-height:200px}
+  body[data-tab="wifi"] .view,body[data-tab="move"] .view,body[data-tab="sun"] .view{height:36vh;min-height:200px}
   .wlist{max-height:7.5em;overflow-y:auto}
 }
