@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
 <script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
 <meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
-<link rel="stylesheet" href="css/style.css?v=2">
+<link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
 <header class="top">
@@ -21,6 +21,7 @@
   <div class="tabs" role="tablist">
     <button class="tab on" id="tab2d" role="tab" aria-selected="true">図面</button>
     <button class="tab" id="tab3d" role="tab" aria-selected="false">3D</button>
+    <button class="tab" id="tabWifi" role="tab" aria-selected="false">WiFi</button>
     <span class="v3opts" id="v3opts" hidden>
       <button class="chip on" data-mode="tilt">ななめ</button><button class="chip" data-mode="top">上から</button><button class="chip" data-mode="inside">部屋の中</button>
       <label class="chk"><input type="checkbox" id="cut" checked>壁を低く</label>
@@ -42,7 +43,22 @@
     <span class="traceBtns" id="traceBtns" hidden><button id="tBack">1点もどす</button><button id="tClose" class="pri">部屋にする</button></span>
     <span class="hist"><button id="undo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）">↶</button><button id="redo" aria-label="やり直す" title="やり直す（Ctrl+Y）">↷</button></span>
   </div>
+  <div class="tools" id="wtools" hidden>
+    <div class="seg" role="group" aria-label="WiFi の道具">
+      <button data-tool="router">ルーター</button><button data-tool="spot">よく使う場所</button><button data-tool="wall">壁の材料</button>
+    </div>
+    <span class="seg sm" role="group" aria-label="周波数"><button data-freq="2.4">2.4GHz</button><button data-freq="5">5GHz</button></span>
+    <select id="wHouse" aria-label="家の種類"><option value="rc">マンション</option><option value="wood">木造の一戸建て</option></select>
+  </div>
   <div class="selbar" id="selbar" hidden></div>
+  <div class="wifibar" id="wifiBar" hidden>
+    <div class="wtop">
+      <span class="seg sm" role="group" aria-label="地図"><button data-wview="signal">電波の強さ</button><button data-wview="good">置き場所の良さ</button></span>
+      <button id="wFind" class="pri">いちばん良い置き場所を探す</button>
+      <span class="legend" aria-hidden="true"><i></i><span>−85</span><span>−75</span><span>−67</span><span>−55 dBm</span></span>
+    </div>
+    <div id="wBody"></div>
+  </div>
   <div class="guide" id="guide">
     <span class="step" id="gStep"></span>
     <span class="gText" id="gText"></span>
@@ -107,6 +123,38 @@
     <p class="hint small">ほかの端末へ移す・人に見せるときは、書き出したファイルを使ってください（サーバーには保存しません）。</p>
   </section>
 
+  <section class="explain wifi-explain">
+    <h2>WiFi の置き場所について</h2>
+    <details>
+      <summary>しくみ</summary>
+      <p>模型の壁・ドア・窓を、床から 1m の高さで切った面の上に、0.75cm のマス目で並べます。そこにルーターから電波（波）を出し、壁を通りぬけたり、はね返ったり、重なり合ったりするようすを、波の式でそのまま計算します（FDTD という方法。まなびラボの<a href="https://sishiya.github.io/manabi-lab/wifi-wave/" target="_blank" rel="noopener">電波の見える部屋</a>と同じ計算です）。強さは、何もない所でルーターから同じ距離はなれたときの強さと比べて、dBm にしています。</p>
+      <p><b>おすすめの置き場所</b>は、電波の「ルーター→場所」と「場所→ルーター」が同じ強さになる性質（相反性）を使います。よく使う場所の印から1回ずつ波を出すと、家のどの点についても「ここにルーターを置いたら、その印でどれくらいか」がわかります。印の中でいちばん弱い値を「置き場所の良さ」として地図にし、部屋の中で壁から 30cm 以上はなれた所のうち、いちばん良い所に★をつけます。</p>
+      <p>壁の材料は、2つの部屋にはさまれた壁を間仕切り（石こうボード）、1つの部屋にしか面していない壁を外壁（マンションはコンクリート、木造は木）として決めます。なぞっていない廊下などに面した壁も外壁になるので、ちがうときは「壁の材料」で変えてください。ドア・引き戸は閉めた木、玄関は金属、窓はガラスです。</p>
+      <div class="tablewrap"><table id="wMatTable"></table></div>
+      <p class="small">表は、壁1枚にまっすぐ当たったときに弱まる量（解析の式）です。</p>
+    </details>
+    <details>
+      <summary>簡単にしたところ</summary>
+      <ul>
+        <li>床と平行な1枚の面（高さ 1m）だけで計算しています。上や下の階・天井・床・家具の形・壁の中の鉄筋や柱は入っていません。人の体も入れていません。</li>
+        <li>電波の向き（偏波）は1通り、周波数は1つ（2.4GHz はチャンネル6、5GHz はチャンネル40）です。ルーターの出力は 20dBm（目安）としています。</li>
+        <li>受信の強さの境目（−55・−67・−75・−85 dBm）と「動画も快適」などの言葉は<b class="est">目安</b>です。ルーターやスマホの機種、まわりの家の WiFi でも変わります。</li>
+        <li>壁の厚さは材料ごとに決めた値（上の表）を使い、模型の「壁の厚さ」は使いません。</li>
+        <li>1枚の面の中で計算するので、壁ではね返った電波が上や下へにげません。そのぶん部屋の中では、実際より少し強めに出ることがあります。同じ場所でも数 cm ずれると数 dB 変わる（波の重なり）ので、地図は約 6cm 四方でならしています。</li>
+        <li>電波の強さを示すもので、体への影響を示すものではありません。</li>
+      </ul>
+    </details>
+    <details>
+      <summary>おもな出どころ（電波）</summary>
+      <ul class="src">
+        <li>材料の性質（比誘電率・導電率）: ITU-R P.2040-3（2023）表3</li>
+        <li>自由空間の損失: ITU-R P.525</li>
+        <li>周波数: IEEE 802.11（2.4GHz 帯のチャンネル6＝2437MHz、5GHz 帯のチャンネル40＝5200MHz）</li>
+        <li>計算の方法（FDTD）: A. Taflove and S. C. Hagness, <i>Computational Electrodynamics: The Finite-Difference Time-Domain Method</i>, 3rd ed., Artech House, 2005</li>
+      </ul>
+    </details>
+  </section>
+
   <section class="explain">
     <details open>
       <summary>使い方</summary>
@@ -160,10 +208,12 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="../lib/three@0.128.0/build/three.min.js"></script>
-<script src="js/model.js?v=2"></script>
-<script src="js/plan.js?v=2"></script>
-<script src="js/view3d.js?v=2"></script>
-<script src="js/ui.js?v=2"></script>
-<script src="js/main.js?v=2"></script>
+<script src="js/model.js?v=3"></script>
+<script src="js/plan.js?v=3"></script>
+<script src="js/view3d.js?v=3"></script>
+<script src="js/wifi-sim.js?v=3"></script>
+<script src="js/wifi.js?v=3"></script>
+<script src="js/ui.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
 </body>
 </html>
