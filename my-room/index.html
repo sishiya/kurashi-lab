@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>わが家の模型 — くらしラボ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
+<script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
+<meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
+<link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+<header class="top">
+  <a class="home" href="../" title="くらしラボの入口へ"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#2f855a"/><g fill="none" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"><rect x="11" y="25" width="42" height="25" rx="3"/><path d="M24 25v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5M11 36h42"/></g><rect x="28" y="32" width="8" height="8" rx="1.5" fill="#fff"/></svg></a>
+  <h1>わが家の模型</h1>
+  <span class="local" title="間取りの画像も寸法も、このブラウザの中だけで使います">外に送りません</span>
+</header>
+
+<div class="layout">
+<div class="stage" id="stage">
+  <div class="tabs" role="tablist">
+    <button class="tab on" id="tab2d" role="tab" aria-selected="true">図面</button>
+    <button class="tab" id="tab3d" role="tab" aria-selected="false">3D</button>
+    <span class="v3opts" id="v3opts" hidden>
+      <button class="chip on" data-mode="tilt">ななめ</button><button class="chip" data-mode="top">上から</button><button class="chip" data-mode="inside">部屋の中</button>
+      <label class="chk"><input type="checkbox" id="cut" checked>壁を低く</label>
+    </span>
+  </div>
+  <div class="view" id="view">
+    <canvas id="plan" aria-label="上から見た図。部屋の角をなぞって模型を作ります"></canvas>
+    <div id="v3" hidden></div>
+    <div class="zoom" id="zoom">
+      <button id="zIn" aria-label="大きく">＋</button><button id="zOut" aria-label="小さく">－</button><button id="zFit" aria-label="全体を表示">全体</button>
+    </div>
+    <div class="drop" id="drop" hidden>ここに画像を放すと下じきになります</div>
+  </div>
+  <div class="tools" id="tools">
+    <div class="seg" role="group" aria-label="道具">
+      <button data-tool="trace" class="on">なぞる</button><button data-tool="select">動かす</button><button data-tool="open">ドア・窓</button><button data-tool="tape">メジャー</button>
+    </div>
+    <select id="openKind" aria-label="置くものの種類" hidden></select>
+    <span class="traceBtns" id="traceBtns" hidden><button id="tBack">1点もどす</button><button id="tClose" class="pri">部屋にする</button></span>
+    <span class="hist"><button id="undo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）">↶</button><button id="redo" aria-label="やり直す" title="やり直す（Ctrl+Y）">↷</button></span>
+  </div>
+  <div class="selbar" id="selbar" hidden></div>
+  <div class="guide" id="guide">
+    <span class="step" id="gStep"></span>
+    <span class="gText" id="gText"></span>
+    <span class="gBtns" id="gBtns"></span>
+  </div>
+</div>
+
+<main class="panel">
+  <section>
+    <h2>間取りの画像</h2>
+    <p class="hint">物件の間取り図などを下じきにして、上からなぞります。画像はこの端末の中だけで使い、どこにも送りません（読みこむときに書きなおすので、撮影の場所などの情報も残りません）。</p>
+    <div class="row">
+      <label class="btn pri"><input type="file" id="imgFile" accept="image/*" hidden>画像をえらぶ</label>
+      <button id="sample">見本の間取りで試す</button>
+    </div>
+    <p class="hint small">貼りつけ（Ctrl+V）や、図の上へのドロップでも読みこめます。</p>
+    <div class="row" id="imgRow" hidden>
+      <label class="range">下じきの濃さ <input type="range" id="imgAlpha" min="0.1" max="1" step="0.05" value="0.55"></label>
+      <button id="imgDel">画像を外す</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>縮尺</h2>
+    <p id="scaleState" class="state"></p>
+    <p class="hint">部屋をえらんで「帖」を入れると、広告のルール（1帖＝1.62㎡ 以上）から縮尺を<b class="est">推定</b>します。メジャーで1か所でも長さを入れると、そちらを優先します（<b class="meas">測った値</b>）。</p>
+  </section>
+
+  <section>
+    <h2>家ぜんたい</h2>
+    <div class="grid2">
+      <label>天井の高さ <span class="unit"><input type="number" id="ceil" min="150" max="600" step="1" inputmode="decimal"> cm</span></label>
+      <label>壁の厚さ <span class="unit"><input type="number" id="wallT" min="3" max="60" step="1" inputmode="decimal"> cm</span></label>
+      <label>何階 <span class="unit"><input type="number" id="floor" min="1" max="80" step="1" inputmode="numeric"> 階</span></label>
+      <label>北の向き <span class="unit"><input type="range" id="north" min="-180" max="180" step="1"> <output id="northOut"></output></span></label>
+    </div>
+    <p class="hint small">空らんは<b class="est">推定</b>（ふつうの値）を使います。北の向きは、間取り図の方位マークに図の右上の矢印を合わせてください（日差しの計算で使う予定）。</p>
+  </section>
+
+  <section>
+    <h2>寸法の表</h2>
+    <div class="tablewrap"><table id="dimTable"></table></div>
+  </section>
+
+  <section>
+    <h2>保存</h2>
+    <label class="chk"><input type="checkbox" id="autosave" checked>この端末に自動で保存する</label>
+    <label class="chk"><input type="checkbox" id="saveImg" checked>画像もいっしょに保存する</label>
+    <p class="hint small" id="saveState"></p>
+    <div class="row">
+      <button id="export">ファイルに書き出す</button>
+      <label class="btn"><input type="file" id="importFile" accept=".json,application/json" hidden>ファイルを読みこむ</label>
+      <button id="reset" class="danger">最初から</button>
+    </div>
+    <p class="hint small">ほかの端末へ移す・人に見せるときは、書き出したファイルを使ってください（サーバーには保存しません）。</p>
+  </section>
+
+  <section class="explain">
+    <details open>
+      <summary>使い方</summary>
+      <ol>
+        <li><b>なぞる</b>: 部屋の角を順に押します。線は自動で水平・垂直にそろいます（Shift を押している間ははずれます）。最初の角をもう一度押すか「部屋にする」で1部屋。となりの部屋の角には吸いつきます。間取り図の<b>壁の線のまん中</b>をなぞってください。</li>
+        <li><b>縮尺</b>: 部屋をえらんで帖を入れるか、「メジャー」でわかる長さ（ドアの幅・部屋の幅など）を2点で測り、長さを入れます。</li>
+        <li><b>ドア・窓</b>: 種類をえらび、壁を押して置きます。ドラッグで壁にそって動かせます。</li>
+        <li><b>3D</b>: 上の「3D」で模型を見ます。ドラッグで回す、ホイール・2本指で寄る、右ドラッグ・2本指で動かす。</li>
+      </ol>
+      <p class="small">図面の上では、ホイールや2本指で拡大、「動かす」の道具で何もない所をドラッグすると移動します。角はドラッグで動かせます。</p>
+    </details>
+    <details>
+      <summary>しくみ</summary>
+      <p>なぞった角の位置は、画像のピクセルで覚えています。縮尺（1ピクセルが何 m か）は、メジャーの値があれば「測った長さ ÷ 図の上の長さ」（何本かあれば平均）、なければ「帖 × 1.62㎡ ÷ 図の上の面積」から決めます。不動産の広告では、帖は<b>壁の中心線で測った面積</b>を 1.62㎡ 以上として数えるルールなので、なぞるのも壁の線のまん中にしています。</p>
+      <p>壁は、部屋の辺のうち同じ直線の上にあるものを1本にまとめて作ります（となりの部屋との壁が2重にならないように）。ドアや窓は、その壁から幅の分を抜き、窓は下の壁（腰の高さまで）と上の壁を残します。</p>
+    </details>
+    <details>
+      <summary>簡単にしたところ</summary>
+      <ul>
+        <li>壁の厚さはどこも同じです（家ぜんたいで変えられます）。床は水平、天井はどの部屋も同じ高さです。</li>
+        <li>帖から出した縮尺は<b class="est">推定</b>です。1帖の広さは物件によって 1.62㎡ より広いこともあるので、メジャーで1か所測ると確かになります。</li>
+        <li>ドアの幅・窓の大きさ・天井の高さ・壁の厚さの初期値は<b class="est">目安</b>です（建築の資料でまだ確かめていません）。測った値に置きかえてください。</li>
+        <li>3D の影は見やすくするための光です（※ 目印。本物の太陽の向きではありません）。</li>
+      </ul>
+    </details>
+    <details>
+      <summary>おもな出どころ</summary>
+      <ul class="src">
+        <li>1帖＝1.62㎡ 以上（各室の壁心面積 ÷ 畳数）: 不動産の表示に関する公正競争規約施行規則 第10条（16）。条文の内容は <a href="https://smtrc.jp/useful/glossary/detail/n/3751" target="_blank" rel="noopener">三井住友トラスト基礎研究所の不動産用語集</a>（「本間（京間）」の項）で確かめました（2026-10-19。規約の原文とはまだ照らしていません）。</li>
+      </ul>
+    </details>
+    <details>
+      <summary>使っているもの</summary>
+      <ul class="src">
+        <li>three.js r128（MIT License）— 3D の表示</li>
+      </ul>
+    </details>
+    <details>
+      <summary>入力したものについて</summary>
+      <p>間取りの画像・寸法・模型は、このブラウザの中だけで計算します。保存はこの端末（ブラウザの保存領域）と、書き出したファイルだけです。どこにも送信しません。「最初から」で端末の保存も消えます。</p>
+      <p class="small">公開しているページでは、どのページが見られたかを知るためにアクセス解析（Google アナリティクス）を使っています。入力したもの（画像・寸法・模型）は記録に入りません。くわしくは <a href="../#analytics">くらしラボの入口</a> に書いています。</p>
+    </details>
+  </section>
+  <p class="foot"><a href="../">くらしラボ</a> ・ <a href="https://github.com/sishiya/kurashi-lab" target="_blank" rel="noopener">ソースコード</a></p>
+</main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="../lib/three@0.128.0/build/three.min.js"></script>
+<script src="js/model.js?v=1"></script>
+<script src="js/plan.js?v=1"></script>
+<script src="js/view3d.js?v=1"></script>
+<script src="js/ui.js?v=1"></script>
+<script src="js/main.js?v=1"></script>
+</body>
+</html>
