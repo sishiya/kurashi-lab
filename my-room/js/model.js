@@ -29,12 +29,17 @@ let M = newModel();          // 模型（保存するのはこれ）
 let IMG = null;              // 下じきの画像 { el: HTMLImageElement, url: dataURL }（M.img に大きさ）
 
 function newModel() {
-  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1, wifi: newWifi(), move: newMove() };
+  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1, wifi: newWifi(), move: newMove(), sun: newSun() };
 }
 // WiFi（段階B）: ルーター・中継機 ext・よく使う場所・もの items（冷蔵庫など。rot は度）は u の点。wallMat は「部屋id:辺」ごとに変えた材料
 function newWifi() { return { router: null, freq: '2.4', house: 'rc', spots: [], wallMat: {}, items: [], ext: [] }; }
 // 家具の搬入（段階C）: 箱の大きさ（m）・運ぶ先の部屋・ぎりぎりの境目（両側のすき間の合計）
 function newMove() { return { preset: 'sofa3', w: 2.0, d: 0.9, h: 0.85, target: null, margin: 0.05 }; }
+// 日差し（段階D）: 場所（都道府県の番号、-1 は数字で）・日付（1月1日からの日）・時刻（分、日本時間）・ひさしの出（m）・まわりの建物
+function newSun() {
+  const t = new Date(), doy = Math.round((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - Date.UTC(t.getFullYear(), 0, 1)) / 864e5) + 1;
+  return { pref: 12, lat: 35 + 41 / 60 + 21 / 3600, lon: 139 + 41 / 60 + 30 / 3600, doy, min: 720, eave: 0, bldgs: [], used: false };
+}
 const newId = p => p + (M.nextId++);
 const byId = (list, id) => list.find(o => o.id === id);
 
@@ -93,6 +98,7 @@ function rotatePlan(deg) {
   for (const sp of M.wifi.spots) sp.p = rot(sp.p);
   for (const e of M.wifi.ext) e.p = rot(e.p);
   for (const it of M.wifi.items) { it.p = rot(it.p); it.rot = ((it.rot || 0) + deg) % 360; }
+  for (const b of M.sun.bldgs) { b.a = rot(b.a); b.b = rot(b.b); }   // 建物は図の上で軸にそった四角のまま（角だけ回す）
   let d = (M.imgRot || 0) + deg;
   while (d > 180) d -= 360; while (d <= -180) d += 360;
   M.imgRot = Math.round(d * 1000) / 1000;
@@ -243,6 +249,8 @@ function fixModel(m) {       // 読みこんだものの形をそろえる（足
   out.wifi = Object.assign(newWifi(), out.wifi && typeof out.wifi === 'object' ? out.wifi : {});
   for (const k of ['spots', 'items', 'ext']) if (!Array.isArray(out.wifi[k])) out.wifi[k] = [];
   out.move = Object.assign(newMove(), out.move && typeof out.move === 'object' ? out.move : {});
+  out.sun = Object.assign(newSun(), out.sun && typeof out.sun === 'object' ? out.sun : {});
+  if (!Array.isArray(out.sun.bldgs)) out.sun.bldgs = [];
   if (!out.wifi.wallMat || typeof out.wifi.wallMat !== 'object') out.wifi.wallMat = {};
   return out;
 }

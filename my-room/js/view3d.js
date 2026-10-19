@@ -92,7 +92,7 @@ function viewBuild(refit) {
     m.receiveShadow = true; V.group.add(m);
     if (inside) {                            // 部屋の中から見るときだけ天井
       const cg = new THREE.ShapeGeometry(sh); cg.rotateX(Math.PI / 2);
-      const ce = new THREE.Mesh(cg, MAT.ceil); ce.position.y = H; V.group.add(ce);
+      const ce = new THREE.Mesh(cg, MAT.ceil); ce.position.y = H; ce.castShadow = true; V.group.add(ce);   // 天井も影を作る（窓からだけ日が入るように）
     }
   }
   const W = buildWalls();
@@ -123,7 +123,7 @@ function viewBuild(refit) {
     gl.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]);
     V.group.add(gl);
   }
-  if (refit || !V.built) viewFit();
+  if (refit || !V.built) viewFit(); else placeSun();
   V.built = true;
   viewRender();
 }
@@ -153,11 +153,17 @@ function viewFit() {
     V.dist = 0.02; V.pitch = 0.18; V.cam.fov = 70;
   }
   V.cam.updateProjectionMatrix();
-  const L = R * 1.2;                         // 影を作る光は、模型の左上の高い所から（目印）
-  V.sun.position.set(V.target.x - L * 0.6, L * 1.4, V.target.z - L * 0.4);
-  V.sun.target.position.set(V.target.x, 0, V.target.z);
-  const sc = V.sun.shadow.camera; sc.left = sc.bottom = -R; sc.right = sc.top = R; sc.near = 0.5; sc.far = L * 4; sc.updateProjectionMatrix();
+  placeSun();
   viewRender();
+}
+// 影を作る光。日差しのタブを使ったあとは、その日付・時刻の本物の太陽の向き（sun.js）。それまでは模型の左上の高い所から（目印）
+function placeSun() {
+  const b = bbox(), R = Math.max(b.x1 - b.x0, b.z1 - b.z0, 2), L = R * 1.2, c = [(b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2];
+  const sv = typeof sun3dDir === 'function' ? sun3dDir() : null;
+  if (sv) { V.sun.position.set(c[0] + sv[0] * L * 2, sv[1] * L * 2, c[1] + sv[2] * L * 2); V.sun.intensity = 1.0; }
+  else { V.sun.position.set(c[0] - L * 0.6, L * 1.4, c[1] - L * 0.4); V.sun.intensity = 0.75; }
+  V.sun.target.position.set(c[0], 0, c[1]);
+  const sc = V.sun.shadow.camera; sc.left = sc.bottom = -R; sc.right = sc.top = R; sc.near = 0.5; sc.far = L * 5; sc.updateProjectionMatrix();
 }
 function viewSetMode(m) { V.mode = m; viewBuild(true); }
 function placeCam() {
