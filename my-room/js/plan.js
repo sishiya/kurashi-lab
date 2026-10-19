@@ -11,6 +11,7 @@ const P = {
   sel: null,                   // { type: 'room'|'open'|'tape', id }
   drag: null, pointers: new Map(), pinch: null, loupe: null,
   imgAlpha: 0.55, shift: false, dirty: false,
+  exts: [],                    // ほかのタブが足す道具と描画（wifi.js・move.js）
   onChange: () => {}, onSelect: () => {}, onRoomClosed: () => {}, onTapeDone: () => {}, onTraceChange: () => {}, onAlign: () => {},
 };
 
@@ -180,8 +181,11 @@ function onDown(e) {
   if (P.pointers.size > 2) return;
   if (e.button === 1 || e.button === 2) { P.drag = { type: 'pan', s: sp, ox: P.ox, oy: P.oy }; return; }
   const p = toU(...sp), touch = e.pointerType !== 'mouse';
-  if (P.ext && P.ext.active() && P.ext.tools.includes(P.tool)) {   // WiFi の道具（wifi.js）
-    P.drag = P.ext.down(p, sp, touch) || { type: 'pan', s: sp, ox: P.ox, oy: P.oy };
+  const ext = P.exts.find(x => x.active() && x.tools.includes(P.tool));
+  if (ext) {                           // WiFi・搬入の道具（wifi.js・move.js）
+    const d = ext.down(p, sp, touch);
+    if (d) d.owner = ext;
+    P.drag = d || { type: 'pan', s: sp, ox: P.ox, oy: P.oy };
     updateLoupe(sp); requestDraw(); return;
   }
   if (P.tool === 'trace') {
@@ -234,7 +238,7 @@ function onMove(e) {
     requestDraw(); return;
   }
   const p = toU(...sp), d = P.drag;
-  if (d && d.ext) { P.ext.move(d, p); updateLoupe(sp); requestDraw(); return; }
+  if (d && d.owner) { d.owner.move(d, p); updateLoupe(sp); requestDraw(); return; }
   if (!d) {                            // マウスをのせているだけ
     if (P.tool === 'trace' && e.pointerType === 'mouse') {
       const sn = snapPoint(p, P.trace[P.trace.length - 1], null, P.trace.length >= 3 ? [P.trace[0]] : []);
@@ -276,7 +280,7 @@ function onUp(e) {
   if (P.pinch) { if (P.pointers.size < 2) P.pinch = null; return; }
   const d = P.drag; P.drag = null; P.loupe = null; P.guide = null;
   if (!d) return;
-  if (d.ext) { P.ext.up(d); requestDraw(); return; }
+  if (d.owner) { d.owner.up(d); requestDraw(); return; }
   if (d.type === 'trace' && P.pending) {
     const q = P.pending; P.pending = null;
     if (P.trace.length >= 3 && dist(q, P.trace[0]) < 1e-6) { planCloseTrace(); return; }
@@ -307,7 +311,7 @@ function onWheel(e) {
 }
 function updateLoupe(sp) {
   const d = P.drag;
-  P.loupe = d && d.touch && (d.ext || ['trace', 'tapeA', 'tapeB', 'vert', 'tapeEnd'].includes(d.type)) ? sp : null;
+  P.loupe = d && d.touch && (d.owner || ['trace', 'tapeA', 'tapeB', 'vert', 'tapeEnd'].includes(d.type)) ? sp : null;
 }
 
 // 壁の線で合わせるときは吸いつかせない（ななめの線をそのまま測る）
@@ -381,7 +385,7 @@ function planDraw() {
     g.beginPath(); r.pts.forEach((p, i) => { const q = toS(p); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); g.closePath();
     g.fillStyle = isSel ? C.sel : C.room; g.globalAlpha = IMG ? 0.45 : 0.8; g.fill(); g.globalAlpha = 1;
   }
-  if (P.ext) P.ext.under(g);           // WiFi の強さの地図
+  for (const x of P.exts) x.under(g, C);   // WiFi の強さの地図・搬入の目当ての部屋
   // 壁（同じ直線の辺は1本にまとめ、開口を抜いたもの）
   const W = buildWalls(), wt = Math.max(2, wallT() / s * P.z);
   g.strokeStyle = C.ink; g.lineWidth = wt; g.lineCap = 'square';
@@ -446,7 +450,7 @@ function planDraw() {
     if (P.guide.y != null) { const y = toS([0, P.guide.y])[1]; g.beginPath(); g.moveTo(0, y); g.lineTo(P.W, y); g.stroke(); }
     g.setLineDash([]); g.globalAlpha = 1;
   }
-  if (P.ext) P.ext.over(g, C);         // ルーター・よく使う場所・壁の材料
+  for (const x of P.exts) x.over(g, C);    // ルーター・よく使う場所・壁の材料・搬入の道
   drawCompass(g, C); drawScaleBar(g, C, s, est);
   if (P.loupe) drawLoupe(g, C);
 }

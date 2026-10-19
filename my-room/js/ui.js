@@ -34,8 +34,8 @@ function gotoStep(i) {
 function renderGuide() {
   const st = STEPS[U.step];
   let text, btns = [];
-  if (U.tab === 'wifi') {                  // WiFi のタブは道具の説明だけ
-    $('gStep').textContent = ''; $('gText').textContent = wifiHint(); $('gBtns').innerHTML = '';
+  if (U.tab === 'wifi' || U.tab === 'move') {   // WiFi・搬入のタブは道具の説明だけ
+    $('gStep').textContent = ''; $('gText').textContent = U.tab === 'wifi' ? wifiHint() : moveHint(); $('gBtns').innerHTML = '';
     return;
   }
   if (U.guideOn) {
@@ -79,16 +79,18 @@ function setTool(t) {
 function renderTrace() { $('traceBtns').hidden = !(P.tool === 'trace' && P.trace.length); $('tClose').disabled = P.trace.length < 3; }
 function setTab(t) {
   const was = U.tab; U.tab = t; document.body.dataset.tab = t;
-  for (const [id, k] of [['tab2d', '2d'], ['tab3d', '3d'], ['tabWifi', 'wifi']]) { $(id).classList.toggle('on', t === k); $(id).setAttribute('aria-selected', t === k); }
-  const flat = t === '2d' || t === 'wifi';   // 上から見た図を使うタブ
+  for (const [id, k] of [['tab2d', '2d'], ['tab3d', '3d'], ['tabWifi', 'wifi'], ['tabMove', 'move']]) { $(id).classList.toggle('on', t === k); $(id).setAttribute('aria-selected', t === k); }
+  const flat = t !== '3d', own = k => k === 'wifi' || k === 'move';   // 上から見た図を使うタブ／自分の道具を持つタブ
   $('plan').hidden = !flat; $('v3').hidden = t !== '3d';
-  $('tools').hidden = t !== '2d'; $('wtools').hidden = t !== 'wifi'; $('v3opts').hidden = t !== '3d';
+  $('tools').hidden = t !== '2d'; $('wtools').hidden = t !== 'wifi'; $('mtools').hidden = t !== 'move'; $('v3opts').hidden = t !== '3d';
   $('zoom').hidden = !flat;
-  if (t === 'wifi' && was !== 'wifi') { U.planTool = P.tool; setTool(M.wifi.router ? 'spot' : 'router'); }
-  if (t !== 'wifi' && was === 'wifi') setTool(U.planTool || 'select');
+  if (own(was) && !own(t)) setTool(U.planTool || 'select');
+  if (!own(was) && own(t)) U.planTool = P.tool;
+  if (t === 'wifi' && was !== 'wifi') setTool(M.wifi.router ? 'spot' : 'router');
+  if (t === 'move' && was !== 'move') setTool('target');
   if (t === '3d') { viewResize(); if (U.stale3d || !V.built) { viewBuild(!V.built); U.stale3d = false; } }
   else { planResize(); }
-  renderSel(); renderGuide(); wifiRender(); requestDraw();
+  renderSel(); renderGuide(); wifiRender(); moveRender(); requestDraw();
   if (t === 'wifi' && wifiStale() && M.wifi.router) wifiSchedule(50);
 }
 
@@ -97,6 +99,7 @@ function renderSel() {
   const bar = $('selbar'), s = P.sel;
   const o = s && (s.type === 'room' || s.type === 'vert' ? byId(M.rooms, s.id) : s.type === 'open' ? byId(M.opens, s.id) : byId(M.tapes, s.id));
   if (U.tab === 'wifi') { bar.hidden = !(s && wifiSel(bar, s)); if (bar.hidden) bar.innerHTML = ''; return; }
+  if (U.tab === 'move') { bar.hidden = true; bar.innerHTML = ''; return; }
   if (!o || U.tab !== '2d') { bar.hidden = true; bar.innerHTML = ''; return; }
   bar.hidden = false;
   if (s.type === 'vert') {
@@ -185,7 +188,7 @@ function changed(opts = {}) {
     $('saveState').textContent = ok ? 'この端末に保存しています。' : '保存できませんでした（容量がいっぱいか、保存できない設定です）。「画像もいっしょに保存する」をはずすと入ることがあります。';
   } else $('saveState').textContent = 'この端末には保存していません。閉じると消えます。';
   $('imgRow').hidden = $('rotRow').hidden = !IMG;
-  renderSel(); renderScale(); renderHouse(); renderTable(); renderHist(); renderTrace(); renderGuide(); wifiRender();
+  renderSel(); renderScale(); renderHouse(); renderTable(); renderHist(); renderTrace(); renderGuide(); wifiRender(); moveRender();
   requestDraw();
   if (U.tab === 'wifi' && wifiStale() && M.wifi.router) wifiSchedule();
   if (U.tab === '3d') viewBuild(opts.refit); else U.stale3d = true;
@@ -250,8 +253,8 @@ function uiInit() {
   document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
   document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode));
   $('cut').onchange = e => { V.cut = e.target.checked; viewBuild(); };
-  $('tab2d').onclick = () => setTab('2d'); $('tab3d').onclick = () => setTab('3d'); $('tabWifi').onclick = () => setTab('wifi');
-  wifiInit();
+  $('tab2d').onclick = () => setTab('2d'); $('tab3d').onclick = () => setTab('3d'); $('tabWifi').onclick = () => setTab('wifi'); $('tabMove').onclick = () => setTab('move');
+  wifiInit(); moveInit();
   $('zIn').onclick = () => planZoom(1.3); $('zOut').onclick = () => planZoom(1 / 1.3); $('zFit').onclick = planFit;
   $('tBack').onclick = planUndoPoint; $('tClose').onclick = planCloseTrace;
   $('undo').onclick = () => { if (undo()) { P.sel = null; changed(); } };
@@ -320,6 +323,7 @@ function uiInit() {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); $(e.shiftKey ? 'redo' : 'undo').click(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); $('redo').click(); return; }
+    if (U.tab === 'move') return;
     if (U.tab === 'wifi') { if ((e.key === 'Backspace' || e.key === 'Delete') && P.sel && $('sDel')) { e.preventDefault(); $('sDel').click(); } return; }
     if (U.tab !== '2d') return;
     if (e.key === 'Enter' && P.tool === 'trace') { planCloseTrace(); }

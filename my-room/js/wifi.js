@@ -361,7 +361,7 @@ function wifiSel(bar, s) {
 
 // ---------- 図の上の操作と描画（plan.js から呼ばれる） ----------
 const nearPx = (a, b, px) => dist(a, b) * P.z < px;
-P.ext = {
+P.exts.push({
   tools: ['router', 'ext', 'spot', 'item', 'wall'],
   active: wifiOn,
   down(p, sp, touch) {
@@ -486,7 +486,7 @@ P.ext = {
       g.closePath(); g.fillStyle = '#ffd34d'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#3a2a00'; g.stroke(); g.restore();
     }
   },
-};
+});
 
 function wifiInit() {
   document.querySelectorAll('[data-freq]').forEach(b => b.onclick = () => { if (M.wifi.freq !== b.dataset.freq) edit(() => { M.wifi.freq = b.dataset.freq; }); });
