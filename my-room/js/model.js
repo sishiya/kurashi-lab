@@ -29,7 +29,7 @@ let M = newModel();          // 模型（保存するのはこれ）
 let IMG = null;              // 下じきの画像 { el: HTMLImageElement, url: dataURL }（M.img に大きさ）
 
 function newModel() {
-  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1, wifi: newWifi(), move: newMove(), sun: newSun() };
+  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, scan: null, nextId: 1, wifi: newWifi(), move: newMove(), sun: newSun() };
 }
 // WiFi（段階B）: ルーター・中継機 ext・よく使う場所・もの items（冷蔵庫など。rot は度）は u の点。wallMat は「部屋id:辺」ごとに変えた材料
 function newWifi() { return { router: null, freq: '2.4', house: 'rc', spots: [], wallMat: {}, items: [], ext: [] }; }
@@ -129,6 +129,7 @@ function deleteVertex(room, i) {
 // ---------- 縮尺 ----------
 // メジャーの値があればそれ（測った値）。なければ帖から（推定）。どちらもなければ仮の値。
 function scaleInfo() {
+  if (M.scan && M.scan.ppm > 0) return { s: 1 / M.scan.ppm, src: 'scan' };   // 3D スキャンの断面（m で測ってある）
   const tapes = M.tapes.filter(t => t.m > 0 && dist(t.a, t.b) > 1e-6);
   if (tapes.length) {
     const s = tapes.reduce((acc, t) => acc + t.m / dist(t.a, t.b), 0) / tapes.length;
@@ -143,6 +144,7 @@ function scaleInfo() {
   if (!M.img) return { s: NO_IMG_UNIT, src: 'grid' };
   return { s: 10 / Math.max(M.img.w, M.img.h), src: 'none' }; // 画像の長い辺を 10m と仮に置く
 }
+const scaleEst = () => { const k = scaleInfo().src; return k === 'jo' || k === 'none'; };   // 縮尺が推定か
 const ceilH = () => M.ceil || DEF.ceil;
 const wallT = () => M.wallT || DEF.wallT;
 function openDims(o) { // m。null は推定（ふつうの値）

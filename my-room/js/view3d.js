@@ -123,6 +123,8 @@ function viewBuild(refit) {
     gl.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]);
     V.group.add(gl);
   }
+  const so = SCAN.show && typeof scanObject === 'function' ? scanObject() : null;   // 3D スキャンを重ねる（scan.js）
+  if (so) { if (so.parent !== V.scene) V.scene.add(so); } else if (SCAN.obj && SCAN.obj.parent) SCAN.obj.parent.remove(SCAN.obj);
   if (refit || !V.built) viewFit(); else placeSun();
   V.built = true;
   viewRender();

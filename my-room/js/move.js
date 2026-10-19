@@ -173,7 +173,7 @@ function moveRender() {
     if (r.why) notes.push(r.why + 'ので、この寝かせ方は試していません。');
     if (r.timeout) notes.push('時間がかかりすぎたので、とちゅうでやめました。');
     if (est.length) notes.push(`通るドアのうち ${est.length}か所の幅が推定です。メジャーで測って「図面」で入れると確かになります。`);
-    if (scaleInfo().src !== 'tape' && scaleInfo().src !== 'grid') notes.push('縮尺が推定です（帖から）。1か所メジャーで測ると確かになります。');
+    if (scaleEst()) notes.push('縮尺が推定です（帖から）。1か所メジャーで測ると確かになります。');
     if (bn && r.ok) notes.push('黄色い丸がいちばんせまい所です。');
     html += notes.map(n => `<p class="why">${esc(n)}</p>`).join('');
   }

@@ -119,7 +119,7 @@ function renderSel() {
     bar.innerHTML = `<span class="k">部屋</span>
       <label>名前 <input type="text" id="sName" value="${esc(o.name)}" maxlength="20"></label>
       <label><input type="number" id="sJo" value="${o.jo || ''}" min="0.5" max="100" step="0.1" inputmode="decimal" placeholder="—"> 帖</label>
-      <span class="note">${si.src === 'tape' || si.src === 'grid' ? '' : '約'}${roomAreaM2(o).toFixed(1)}㎡</span>
+      <span class="note">${scaleEst() ? '約' : ''}${roomAreaM2(o).toFixed(1)}㎡</span>
       <button id="sIn">中から見る</button><button id="sDel" class="danger">消す</button>`;
     $('sName').onchange = e => edit(() => { o.name = e.target.value.trim() || o.name; });
     $('sJo').onchange = e => edit(() => { const v = parseFloat(e.target.value); o.jo = isFinite(v) && v > 0 ? v : null; });
@@ -156,6 +156,7 @@ function edit(fn) { commit(); fn(); changed(); }
 function renderScale() {
   const si = scaleInfo(), el = $('scaleState');
   el.innerHTML = {
+    scan: `3D スキャンから決めています ${badge(true)}（スキャンは m で測ってあります）`,
     tape: `メジャーの値から決めています ${badge(true)}（${si.n}か所の平均）`,
     jo: `帖から決めています ${badge(false)}`,
     grid: '画像なしの方眼です（1マス＝1m）',
@@ -169,8 +170,8 @@ function renderHouse() {
   set('imgRot', M.imgRot || 0); $('rotOut').textContent = (Math.round((M.imgRot || 0) * 10) / 10) + '°';
 }
 function renderTable() {
-  const si = scaleInfo(), est = si.src !== 'tape' && si.src !== 'grid', rows = [];
-  rows.push(['縮尺', si.src === 'tape' ? 'メジャーから' : si.src === 'jo' ? '帖から' : si.src === 'grid' ? '方眼（1マス＝1m）' : '未設定', !est]);
+  const si = scaleInfo(), est = scaleEst(), rows = [];
+  rows.push(['縮尺', si.src === 'scan' ? '3D スキャンから' : si.src === 'tape' ? 'メジャーから' : si.src === 'jo' ? '帖から' : si.src === 'grid' ? '方眼（1マス＝1m）' : '未設定', !est]);
   rows.push(['天井の高さ', (ceilH() * 100).toFixed(0) + ' cm', !!M.ceil]);
   rows.push(['壁の厚さ', (wallT() * 100).toFixed(0) + ' cm', !!M.wallT]);
   for (const r of M.rooms) rows.push([esc(r.name) + ' の広さ', (est ? '約 ' : '') + roomAreaM2(r).toFixed(1) + ' ㎡' + (r.jo ? `（図面 ${r.jo}帖）` : ''), !est]);
@@ -190,7 +191,7 @@ function changed(opts = {}) {
     $('saveState').textContent = ok ? 'この端末に保存しています。' : '保存できませんでした（容量がいっぱいか、保存できない設定です）。「画像もいっしょに保存する」をはずすと入ることがあります。';
   } else $('saveState').textContent = 'この端末には保存していません。閉じると消えます。';
   $('imgRow').hidden = $('rotRow').hidden = !IMG;
-  renderSel(); renderScale(); renderHouse(); renderTable(); renderHist(); renderTrace(); renderGuide(); wifiRender(); moveRender(); sunRender();
+  renderSel(); renderScale(); renderHouse(); renderTable(); renderHist(); renderTrace(); renderGuide(); wifiRender(); moveRender(); sunRender(); scanRender();
   requestDraw();
   if (U.tab === 'wifi' && wifiStale() && M.wifi.router) wifiSchedule();
   if (U.tab === '3d') viewBuild(opts.refit); else U.stale3d = true;
@@ -204,7 +205,7 @@ async function useImage(src) {
   if (M.rooms.length && !confirm('いまの模型を消して、この画像で最初から始めますか？\n（キャンセルすると、模型はそのままで下じきだけ入れかえます）')) {
     commit();
   } else { commit(); M = newModel(); P.sel = null; P.trace = []; }
-  IMG = { el: im.el, url: im.url }; M.img = { w: im.w, h: im.h };
+  IMG = { el: im.el, url: im.url }; M.img = { w: im.w, h: im.h }; M.scan = null;
   planFit(); changed({ refit: true });
   if (U.guideOn && U.step === 0) gotoStep(1);
   toast('下じきにしました（外には送っていません）');
@@ -256,7 +257,7 @@ function uiInit() {
   document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode));
   $('cut').onchange = e => { V.cut = e.target.checked; viewBuild(); };
   $('tab2d').onclick = () => setTab('2d'); $('tab3d').onclick = () => setTab('3d'); $('tabWifi').onclick = () => setTab('wifi'); $('tabMove').onclick = () => setTab('move'); $('tabSun').onclick = () => setTab('sun');
-  wifiInit(); moveInit(); sunInit();
+  wifiInit(); moveInit(); sunInit(); scanInit();
   $('zIn').onclick = () => planZoom(1.3); $('zOut').onclick = () => planZoom(1 / 1.3); $('zFit').onclick = planFit;
   $('tBack').onclick = planUndoPoint; $('tClose').onclick = planCloseTrace;
   $('undo').onclick = () => { if (undo()) { P.sel = null; changed(); } };
@@ -297,7 +298,8 @@ function uiInit() {
   view.addEventListener('drop', e => {
     e.preventDefault(); $('drop').hidden = true;
     const f = [...e.dataTransfer.files][0]; if (!f) return;
-    if (f.type.startsWith('image/')) useImage(URL.createObjectURL(f));
+    if (/\.(obj|glb|gltf|ply|usdz)$/i.test(f.name)) scanLoad(f);
+    else if (f.type.startsWith('image/')) useImage(URL.createObjectURL(f));
     else if (/json$/i.test(f.type) || /\.json$/i.test(f.name)) f.text().then(importText);
   });
 
