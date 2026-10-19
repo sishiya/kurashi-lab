@@ -1,0 +1,6 @@
+# keep LF on every PC (the files are written with LF; PowerShell reads LF fine)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.bat text eol=crlf
+*.cmd text eol=crlf

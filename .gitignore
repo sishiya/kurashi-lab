@@ -1,0 +1,30 @@
+# your own words for the pre-publish check (name, e-mail...) — never commit
+.private-words.txt
+# per-machine notes
+*.local.md
+*.local.txt
+
+# secrets
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Claude Code: per-machine settings
+.claude/settings.local.json
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp
+*.bak
+~$*
+.vscode/
+node_modules/
+
+# logs and screenshots made by tools (local only)
+_dev/tools/out/
+_dev/shots/

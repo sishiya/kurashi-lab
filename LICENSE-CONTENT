@@ -1,0 +1,40 @@
+くらしラボ（kurashi-lab）のツールの中身のライセンス
+Copyright (c) 2026 sishiya
+
+このリポジトリのツールの「中身」は、クリエイティブ・コモンズ 表示-非営利 4.0 国際
+（CC BY-NC 4.0）で公開します。
+  https://creativecommons.org/licenses/by-nc/4.0/deed.ja
+  （法的な全文 https://creativecommons.org/licenses/by-nc/4.0/legalcode.ja）
+
+・作者（sishiya / くらしラボ）の表示をすれば、共有・改変してかまいません。
+  仕事や家庭でツールを使うこと、その結果（計算の答え・図・模型）を使うのは自由です。
+・営利目的では使えません（販売、有料アプリ・有料サービスへの組みこみ、広告収入を
+  目的とした再配布など）。営利で使いたいときは作者に相談してください。
+
+■ 中身にあたるもの
+  - ツールの名前、タイトルのロゴ
+  - ツールの中の文章（説明・解説・ヒント・注意書き）
+  - 画面・図・模型のデザイン（形・色・配置・数値の設定）
+  - 画像・アイコン・サムネイル、効果音、紹介の動画
+    （プログラムで描いたり鳴らしたりしたものも含む）
+  - 企画書・説明書などの文書（PLAN.md、DEVNOTES.md、README.md など）
+  これらがプログラムのファイルの中に書かれていても、中身として扱います。
+  なお、事実や科学のしくみそのもの、引用した文献の内容は、だれのものでもありません。
+
+■ 中身にあたらないもの（LICENSE の MIT License）
+  - プログラムの仕組み: 計算・物理・シミュレーション・描画の処理、画面の操作、
+    ツール（tools/ など）
+
+■ ほかの人のもの（それぞれのライセンスや条件に従います）
+  - 使ったライブラリやデータは、README.md と各ツールの画面の「おもな出どころ」に書きます。
+
+----------------------------------------------------------------------
+English summary
+Copyright (c) 2026 sishiya
+The content of this repository (names and titles, text, designs, images, icons,
+thumbnails, sounds, videos and documents such as PLAN.md and DEVNOTES.md, even
+when written inside program files) is licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0):
+https://creativecommons.org/licenses/by-nc/4.0/
+The program logic itself is licensed under the MIT License (see LICENSE).
+Third-party libraries and data keep their own licenses.
