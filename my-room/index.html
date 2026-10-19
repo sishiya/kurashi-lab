@@ -115,6 +115,8 @@
         <label class="range">上の向き <select id="scanUp"><option value="y">Y が上</option><option value="z">Z が上</option></select></label>
         <label class="range">単位 <select id="scanUnit"><option value="1">m</option><option value="0.01">cm</option><option value="0.001">mm</option></select></label>
       </div>
+      <div class="row"><button id="autoWalls" class="pri">壁を自動で見つける</button></div>
+      <p class="hint small" id="autoNote">スキャンの床と天井近くの断面から部屋を分け、壁の中心線をなぞった形にします。ドア・窓・掃き出し窓も、壁の開いた所から幅と高さを測って置きます。</p>
       <p class="hint small" id="scanInfo"></p>
       <p class="hint small">壁が横に見えるときは「上の向き」、大きさがおかしいときは「単位」を変えてください（なぞったあとに変えると、なぞった角とずれます）。スキャンの形そのものは保存しません。</p>
     </div>
@@ -261,6 +263,7 @@
     </details>
     <details>
       <summary>しくみ</summary>
+      <p><b>壁を自動で見つける</b>ときは、断面の線でいちばん多い向きに壁がそろうよう下じきを回し、床の面（上を向いた低い面）をマス目（2.5cm）に塗ります。天井の少し下の断面を壁として床を分けると、ドアの上は壁がつながっているので、部屋ごとに分かれます。部屋ごとの外まわりを縦横の辺にして（15cm より小さい段はならす）、壁の厚さの半分だけ外へずらして壁の中心線にします。壁の厚さは、となりの部屋との間の幅から測ります。ドア・窓は、高さ 1m では壁がなく天井の近くでは壁がある所を探し、5cm ごとの高さで開いている範囲を測ります。</p>
       <p><b>3D スキャン</b>（OBJ・glTF の .glb・PLY）は、このブラウザの中で読み、床から決めた高さ（初めは 1m）で切った断面を上から見た図にして下じきにします。床の高さは、上を向いた面の低いほうから見つけます。スキャンは m 単位なので、そのまま縮尺になります。USDZ はまだ読めません（OBJ・glb・PLY で書き出してください）。圧縮された glTF（Draco など）も読めません。</p>
       <p>なぞった角の位置は、画像のピクセルで覚えています。縮尺（1ピクセルが何 m か）は、メジャーの値があれば「測った長さ ÷ 図の上の長さ」（何本かあれば平均）、なければ「帖 × 1.62㎡ ÷ 図の上の面積」から決めます。不動産の広告では、帖は<b>壁の中心線で測った面積</b>を 1.62㎡ 以上として数えるルールなので、なぞるのも壁の線のまん中にしています。</p>
       <p>壁は、部屋の辺のうち同じ直線の上にあるものを1本にまとめて作ります（となりの部屋との壁が2重にならないように）。ドアや窓は、その壁から幅の分を抜き、窓は下の壁（腰の高さまで）と上の壁を残します。</p>
@@ -309,7 +312,8 @@
 <script src="js/wifi.js?v=5"></script>
 <script src="js/move.js?v=4"></script>
 <script src="js/sun.js?v=2"></script>
-<script src="js/scan.js?v=2"></script>
+<script src="js/scan.js?v=5"></script>
+<script src="js/scan-walls.js?v=4"></script>
 <script src="js/ui.js?v=8"></script>
 <script src="js/main.js?v=4"></script>
 </body>
