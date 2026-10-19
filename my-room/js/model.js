@@ -31,8 +31,8 @@ let IMG = null;              // 下じきの画像 { el: HTMLImageElement, url: 
 function newModel() {
   return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1, wifi: newWifi() };
 }
-// WiFi（段階B）: ルーターとよく使う場所は u の点。wallMat は「部屋id:辺」ごとに変えた材料
-function newWifi() { return { router: null, freq: '2.4', house: 'rc', spots: [], wallMat: {} }; }
+// WiFi（段階B）: ルーター・中継機 ext・よく使う場所・もの items（冷蔵庫など。rot は度）は u の点。wallMat は「部屋id:辺」ごとに変えた材料
+function newWifi() { return { router: null, freq: '2.4', house: 'rc', spots: [], wallMat: {}, items: [], ext: [] }; }
 const newId = p => p + (M.nextId++);
 const byId = (list, id) => list.find(o => o.id === id);
 
@@ -89,6 +89,8 @@ function rotatePlan(deg) {
   for (const t of M.tapes) { t.a = rot(t.a); t.b = rot(t.b); }
   if (M.wifi.router) M.wifi.router = rot(M.wifi.router);
   for (const sp of M.wifi.spots) sp.p = rot(sp.p);
+  for (const e of M.wifi.ext) e.p = rot(e.p);
+  for (const it of M.wifi.items) { it.p = rot(it.p); it.rot = ((it.rot || 0) + deg) % 360; }
   let d = (M.imgRot || 0) + deg;
   while (d > 180) d -= 360; while (d <= -180) d += 360;
   M.imgRot = Math.round(d * 1000) / 1000;
@@ -237,7 +239,7 @@ function fixModel(m) {       // 読みこんだものの形をそろえる（足
   out.rooms = out.rooms.filter(r => Array.isArray(r.pts) && r.pts.length >= 3);
   out.opens = out.opens.filter(o => OPEN_KINDS[o.kind] && out.rooms.some(r => r.id === o.room));
   out.wifi = Object.assign(newWifi(), out.wifi && typeof out.wifi === 'object' ? out.wifi : {});
-  if (!Array.isArray(out.wifi.spots)) out.wifi.spots = [];
+  for (const k of ['spots', 'items', 'ext']) if (!Array.isArray(out.wifi[k])) out.wifi[k] = [];
   if (!out.wifi.wallMat || typeof out.wifi.wallMat !== 'object') out.wifi.wallMat = {};
   return out;
 }

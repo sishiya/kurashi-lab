@@ -72,13 +72,13 @@ function setTool(t) {
   if (t === 'align' && P.tool !== 'align') U.prevTool = P.tool;
   planSetTool(t);
   document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
-  $('openKind').hidden = t !== 'open';
+  $('openKind').hidden = t !== 'open'; $('itemKind').hidden = t !== 'item';
   $('plan').className = 't-' + t;
   renderTrace(); renderGuide();
 }
 function renderTrace() { $('traceBtns').hidden = !(P.tool === 'trace' && P.trace.length); $('tClose').disabled = P.trace.length < 3; }
 function setTab(t) {
-  const was = U.tab; U.tab = t;
+  const was = U.tab; U.tab = t; document.body.dataset.tab = t;
   for (const [id, k] of [['tab2d', '2d'], ['tab3d', '3d'], ['tabWifi', 'wifi']]) { $(id).classList.toggle('on', t === k); $(id).setAttribute('aria-selected', t === k); }
   const flat = t === '2d' || t === 'wifi';   // 上から見た図を使うタブ
   $('plan').hidden = !flat; $('v3').hidden = t !== '3d';

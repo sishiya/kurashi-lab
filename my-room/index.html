@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
 <script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
 <meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 <header class="top">
@@ -45,8 +45,9 @@
   </div>
   <div class="tools" id="wtools" hidden>
     <div class="seg" role="group" aria-label="WiFi の道具">
-      <button data-tool="router">ルーター</button><button data-tool="spot">よく使う場所</button><button data-tool="wall">壁の材料</button>
+      <button data-tool="router">ルーター</button><button data-tool="ext">中継機</button><button data-tool="spot">使う場所</button><button data-tool="item">もの</button><button data-tool="wall">壁</button>
     </div>
+    <select id="itemKind" aria-label="置くものの種類" hidden></select>
     <span class="seg sm" role="group" aria-label="周波数"><button data-freq="2.4">2.4GHz</button><button data-freq="5">5GHz</button></span>
     <select id="wHouse" aria-label="家の種類"><option value="rc">マンション</option><option value="wood">木造の一戸建て</option></select>
   </div>
@@ -140,6 +141,8 @@
         <li>電波の向き（偏波）は1通り、周波数は1つ（2.4GHz はチャンネル6、5GHz はチャンネル40）です。ルーターの出力は 20dBm（目安）としています。</li>
         <li>受信の強さの境目（−55・−67・−75・−85 dBm）と「動画も快適」などの言葉は<b class="est">目安</b>です。ルーターやスマホの機種、まわりの家の WiFi でも変わります。</li>
         <li>壁の厚さは材料ごとに決めた値（上の表）を使い、模型の「壁の厚さ」は使いません。</li>
+        <li>冷蔵庫・テレビは金属の箱や板、浴槽のお湯と人は水として計算します。大きさは<b class="est">目安</b>です。浴槽のお湯は実際には高さ 1m より下にありますが、面の上にあるものとして計算するので、さえぎる量は多めに出ます。</li>
+        <li>中継機は、ルーターとは別のチャンネルで同じ強さ（20dBm）の電波を出すとして、場所ごとに強いほうをとります。実際の中継機は、ルーターとのやりとりにも電波を使うので速さが落ちます。ルーターとのつながりが −67 dBm より弱い所に置くと、とくに遅くなりやすいです（目安）。</li>
         <li>1枚の面の中で計算するので、壁ではね返った電波が上や下へにげません。そのぶん部屋の中では、実際より少し強めに出ることがあります。同じ場所でも数 cm ずれると数 dB 変わる（波の重なり）ので、地図は約 6cm 四方でならしています。</li>
         <li>電波の強さを示すもので、体への影響を示すものではありません。</li>
       </ul>
@@ -208,12 +211,12 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="../lib/three@0.128.0/build/three.min.js"></script>
-<script src="js/model.js?v=3"></script>
-<script src="js/plan.js?v=3"></script>
-<script src="js/view3d.js?v=3"></script>
-<script src="js/wifi-sim.js?v=3"></script>
-<script src="js/wifi.js?v=3"></script>
-<script src="js/ui.js?v=3"></script>
-<script src="js/main.js?v=3"></script>
+<script src="js/model.js?v=4"></script>
+<script src="js/plan.js?v=4"></script>
+<script src="js/view3d.js?v=4"></script>
+<script src="js/wifi-sim.js?v=4"></script>
+<script src="js/wifi.js?v=4"></script>
+<script src="js/ui.js?v=5"></script>
+<script src="js/main.js?v=4"></script>
 </body>
 </html>
