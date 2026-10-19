@@ -7,9 +7,10 @@
 
 | フォルダ | ツール |
 |---|---|
-| `my-room/` | わが家の模型（作っている途中。入口にはまだ載せていません）: 間取りの画像をなぞって部屋の模型を作り、3D で見る。WiFi の置き場所も（電波の計算はまなびラボの「電波の見える部屋」から写したもの） |
+| `my-room/` | わが家の模型（試作。保管庫 `archive.html` に置いています）: 間取りの画像をなぞって部屋の模型を作り、3D で見る。WiFi の置き場所も（電波の計算はまなびラボの「電波の見える部屋」から写したもの） |
 
-- **公開中**: https://sishiya.github.io/kurashi-lab/ （GitHub Pages）
+- **公開中**: https://sishiya.github.io/kurashi-lab/ （GitHub Pages）。作りかけのツールは保管庫 https://sishiya.github.io/kurashi-lab/archive.html
+- サムネイルは `thumbs/<フォルダ名>.jpg`（640×360）
 
 ## はじめてクローンしたとき
 

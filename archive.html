@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>くらしラボ 保管庫</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%235d6b61'/><path d='M14 22h36v8H14zM18 30h28v20H18z' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'/><path d='M27 38h10' stroke='%23fff' stroke-width='3.5' stroke-linecap='round'/></svg>">
+<script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
+<style>
+/* 見た目は入口（index.html）のカードとスマホ表示に合わせる（まなびラボの保管庫と同じ形）。
+   カードは新着順（作成日の新しい順）に HTML に直接書く。新しいツールはいちばん上に足す */
+:root{--bg:#f4f8f4;--ink:#16201a;--muted:#5c6b61;--line:#d7e3da;--card:#fff;--accent:#2f855a;--thumb:#dfeae2;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1511;--ink:#e8f0ea;--muted:#9aaa9f;--line:#27332b;--card:#161e19;--accent:#6fcf97;--thumb:#27332b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;line-height:1.75}
+p{word-break:auto-phrase;text-wrap:pretty}
+main{max-width:1000px;margin:0 auto;padding:48px 16px 64px}
+h1{margin:0 0 8px;font-size:32px;line-height:1.3}
+.lead{color:var(--muted);margin:0 0 8px;max-width:720px}
+.lead a{color:var(--accent)}
+
+/* 一覧 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin-top:32px}
+.card{position:relative;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card:hover{border-color:var(--accent)}
+.card:hover .thumb{filter:brightness(1.08)}
+.pic{position:relative}
+.proto{position:absolute;z-index:1;pointer-events:none;top:8px;left:8px;padding:1px 8px;border-radius:6px;background:#5d6b61;color:#fff;font-size:12px;font-weight:700;line-height:1.6;letter-spacing:.05em;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.thumb{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;background:var(--thumb)}
+.body{padding:14px 16px 16px;display:flex;flex-direction:column;flex:1}
+.card a.open{color:var(--accent);font-size:18px;font-weight:700;line-height:1.45;text-decoration:none}
+.card a.open::after{content:"";position:absolute;inset:0}
+.card a.open:focus-visible{outline:none}
+.card:has(a.open:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.card p{margin:6px 0 10px;color:var(--muted);font-size:14px;line-height:1.7;flex:1}
+.card p.state{flex:none;margin:0 0 12px;color:var(--ink);font-size:12.5px;line-height:1.6}
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.dates{font-variant-numeric:tabular-nums}
+.card a.ver{position:relative;z-index:1;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);margin-top:32px}
+.note a{color:var(--accent)}
+@media (max-width:719px){main{padding-top:32px}}
+
+/* スマホ: 一覧は横長のリスト（入口と同じ） */
+@media (max-width:639px){
+  .lead{font-size:14px}
+  .grid{grid-template-columns:1fr;gap:12px;margin-top:20px}
+  .card{flex-direction:row;border-radius:10px}
+  .pic{flex:none;width:112px;align-self:flex-start;margin:10px 0 10px 10px}
+  .thumb{aspect-ratio:4/3;border-radius:6px}
+  .proto{top:4px;left:4px;padding:0 6px;font-size:11px}
+  .body{padding:10px 12px;min-width:0}
+  .card a.open{font-size:16px}
+  .card p{font-size:13px;line-height:1.6;margin:2px 0 6px}
+  .card p.state{font-size:12px;margin:0 0 6px}
+  .foot{padding-top:0;border-top:0;font-size:11px}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>保管庫</h1>
+  <p class="lead">ここは、くらしラボの保管庫です。作りかけのツールを、しまってあります。いちおう動きますが、内容や見た目は途中のままです。ふだん使うなら<a href="./">入口のツール</a>をどうぞ。</p>
+  <p class="lead">入力したもの（写真・間取り・スキャンなど）は、どのツールも外に送りません。</p>
+
+  <div class="grid">
+    <div class="card"><div class="pic"><span class="proto">試作</span><img class="thumb" src="thumbs/my-room.jpg" alt="" width="640" height="360" loading="lazy"></div><div class="body"><a class="open" href="my-room/">わが家の模型</a><p>間取りの画像や 3D スキャンをなぞって、自分の家の模型を作る。その模型の上で、WiFi の電波の届き方とルーターのおすすめの置き場所、家具が玄関から入るか、窓から入る日差しを計算する。入力したものは外に送らない。</p><p class="state">試作（段階 A〜E の最初の版。模型・WiFi・搬入・日差し・3D スキャン）</p><div class="foot"><span class="dates">作成 2026-10-19 ・ 更新 2026-10-19</span><a class="ver" href="https://github.com/sishiya/kurashi-lab/commits/main/my-room" target="_blank" rel="noopener">変更の記録</a></div></div></div>
+  </div>
+
+  <p class="note"><a href="./">くらしラボの入口へ</a> ・ ソースコードと開発メモ: <a href="https://github.com/sishiya/kurashi-lab">github.com/sishiya/kurashi-lab</a></p>
+</main>
+</body>
+</html>
