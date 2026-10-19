@@ -351,7 +351,7 @@ function planDraw() {
     room: css('--plan-room'), sel: css('--plan-sel'), est: css('--est'), meas: css('--meas'), win: css('--plan-win') };
   g.setTransform(P.dpr, 0, 0, P.dpr, 0, 0);
   g.fillStyle = C.bg; g.fillRect(0, 0, P.W, P.H);
-  const si = scaleInfo(), s = si.s, est = si.src !== 'tape' && si.src !== 'grid';   // 方眼は描いたとおりの長さ
+  const s = scaleInfo().s, est = scaleEst();   // 方眼・スキャンは描いたとおりの長さ
 
   // 1m の方眼（5m ごとに少し濃く）
   const step = 1 / s;
