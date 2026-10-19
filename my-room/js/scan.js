@@ -145,16 +145,18 @@ function normTri() {
   }
   return out;
 }
-function floorOf(t) {                 // 床の高さ: 上を向いた面のうち、低いほうで広いもの（なければ低い所の 2%）
+function floorOf(t) {                 // 床の高さ: 上を向いた面の高さを、面の広さの重みで低いほうから 25% の所（なければ低い所の 2%）
   const hs = [];
   for (let i = 0; i < t.length; i += 9) {
     const ax = t[i + 3] - t[i], ay = t[i + 4] - t[i + 1], az = t[i + 5] - t[i + 2], bx = t[i + 6] - t[i], by = t[i + 7] - t[i + 1], bz = t[i + 8] - t[i + 2];
     const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, l = Math.hypot(nx, ny, nz);
-    if (l > 0 && Math.abs(ny) / l > 0.95) hs.push((t[i + 1] + t[i + 4] + t[i + 7]) / 3);
+    if (l > 0 && ny / l > 0.95) hs.push([(t[i + 1] + t[i + 4] + t[i + 7]) / 3, l / 2]);
   }
-  if (hs.length < 10) { const ys = []; for (let i = 1; i < t.length; i += 30) ys.push(t[i]); ys.sort((a, b) => a - b); return ys[Math.floor(ys.length * 0.02)] || 0; }
-  hs.sort((a, b) => a - b);
-  return hs[Math.floor(hs.length * 0.1)];
+  if (!hs.length) { const ys = []; for (let i = 1; i < t.length; i += 30) ys.push(t[i]); ys.sort((a, b) => a - b); return ys[Math.floor(ys.length * 0.02)] || 0; }
+  hs.sort((a, b) => a[0] - b[0]);
+  const tot = hs.reduce((s, h) => s + h[1], 0); let c = 0;
+  for (const h of hs) { c += h[1]; if (c >= tot * 0.25) return h[0]; }
+  return hs[0][0];
 }
 
 // ---------- 断面の図を作って下じきに ----------
@@ -233,6 +235,9 @@ function scanObject() {
   SCAN.obj.position.set(cx, 0, cz); SCAN.obj.rotation.y = -(M.imgRot || 0) * Math.PI / 180;
   SCAN.obj.userData.mesh.position.set(-s.X0 - cx, -s.floor, -s.Z0 - cz);
   const k = scaleInfo().s * s.ppm; SCAN.obj.scale.set(k, 1, k);   // 縮尺がスキャンのままなら 1
+  // 「壁を低く」のときはスキャンも同じ高さ（1.1m）で切る（天井がかぶって模型が見えないので）
+  V.R.localClippingEnabled = true;
+  SCAN.obj.userData.mesh.material.clippingPlanes = V.cut && V.mode !== 'inside' ? [new THREE.Plane(new THREE.Vector3(0, -1, 0), Math.min(ceilH(), 1.1))] : [];
   return SCAN.obj;
 }
 
@@ -254,4 +259,5 @@ function scanInit() {
   $('scanSlice').oninput = e => { $('scanSliceOut').textContent = e.target.value + ' cm'; };
   $('scanSlice').onchange = e => { SCAN.slice = +e.target.value / 100; scanApply(false); };
   $('scan3d').onchange = e => { SCAN.show = e.target.checked; viewBuild(); };
+  $('autoWalls').onclick = autoWallsApply;
 }
