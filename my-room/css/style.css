@@ -222,6 +222,8 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
   #stools{flex-wrap:wrap;overflow:visible}
   #stools .srange{flex:1 1 calc(100% - 56px);min-width:0}
   #stools .srange+.srange{flex-basis:100%}
+  /* なぞっている間は「1点もどす」「部屋にする」を先頭に（画面の外に出ないように） */
+  .traceBtns{order:-1}
   /* 搬入: 1段目に家具と「調べる」、2段目に寸法（「調べる」が画面の外に出ないように） */
   #mtools{flex-wrap:wrap;overflow:visible}
   #mtools #fPreset{flex:1 1 0;min-width:0}

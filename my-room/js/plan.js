@@ -89,7 +89,7 @@ function allVerts(skip) {
 }
 // 角に吸いつく → 前の点から水平・垂直にそろえる → ほかの角と x・y をそろえる（Shift で全部はずす）
 function snapPoint(p, from, skip, extra = []) {
-  const R = 12 / P.z, verts = allVerts(skip).concat(extra);
+  const R = (P.touch ? 22 : 12) / P.z, verts = allVerts(skip).concat(extra);   // 指は太いので、角への吸いつきを広く
   let best = null, bd = R;
   for (const v of verts) { const d = dist(p, v); if (d < bd) { bd = d; best = v; } }
   if (best) return { p: best.slice(), guide: null, vertex: true };
@@ -176,9 +176,10 @@ function select(s) { P.sel = s; P.onSelect(s); requestDraw(); }
 
 function onDown(e) {
   try { P.cv.setPointerCapture(e.pointerId); } catch (err) {}   // 合成のイベントなどでは失敗する
-  P.shift = e.shiftKey;
+  P.shift = e.shiftKey; P.touch = e.pointerType !== 'mouse';
   const sp = evPos(e);
   P.pointers.set(e.pointerId, sp);
+  if (P.space && e.button === 0) { P.drag = { type: 'pan', s: sp, ox: P.ox, oy: P.oy }; return; }   // Space を押しながらドラッグで図を動かす
   if (P.pointers.size === 2) {         // 2本指: 拡大・移動（していた操作はやめる）
     P.pending = null; P.loupe = null; P.drag = null;
     const [a, b] = [...P.pointers.values()];
@@ -225,7 +226,7 @@ function onDown(e) {
       P.onChange(); updateLoupe(sp); requestDraw(); return;
     }
     const v = hitVertex(p), o = !v && hitOpen(p), t = !v && !o && hitTape(p);
-    if (v) P.drag = { type: 'vert', refs: v, moved: false, touch };
+    if (v) P.drag = { type: 'vert', refs: v, moved: false, touch, s: sp };
     else if (o) { select({ type: 'open', id: o.id }); P.drag = { type: 'open', o, moved: false }; }
     else if (t && t.end) { select({ type: 'tape', id: t.t.id }); P.drag = { type: 'tapeEnd', t: t.t, end: t.end, moved: false, touch }; }
     else P.drag = { type: 'pan', s: sp, ox: P.ox, oy: P.oy, click: true, pick: t ? { type: 'tape', id: t.t.id } : null };
@@ -248,6 +249,10 @@ function onMove(e) {
   const p = toU(...sp), d = P.drag;
   if (d && d.owner) { d.owner.move(d, p); updateLoupe(sp); requestDraw(); return; }
   if (!d) {                            // マウスをのせているだけ
+    if (e.pointerType === 'mouse') {    // つかめる物の上では手の形（北の矢印・角・ドア・窓・メジャーの端）
+      const grab = dist(sp, [P.W - 30, 30]) < 26 || P.space || (P.tool === 'select' || P.tool === 'open') && (hitVertex(p) && P.tool === 'select' || hitOpen(p) || P.tool === 'select' && hitTape(p));
+      P.cv.style.cursor = grab ? 'grab' : '';
+    }
     if (P.tool === 'trace' && e.pointerType === 'mouse') {
       const sn = snapPoint(p, P.trace[P.trace.length - 1], null, P.trace.length >= 3 ? [P.trace[0]] : []);
       P.hover = sn.p; P.guide = sn.guide; requestDraw();
@@ -268,14 +273,16 @@ function onMove(e) {
   } else if (d.type === 'tapeA' || d.type === 'tapeB') {
     P.tapeB = tapeSnap(p, P.tapeA);
   } else if (d.type === 'vert') {
-    if (!d.moved) { commit(); d.moved = true; }
+    if (!d.moved) { if (d.s && dist(sp, d.s) < 4) return; commit(); d.moved = true; }   // 4px 動くまでは動かさない（押しただけでずれない）
     // となりの角と水平・垂直にそろうのは、snapPoint の x・y そろえで
     const sn = snapPoint(p, null, d.refs, []);
     d.refs.forEach(([r, i]) => { r.pts[i] = sn.p.slice(); });
     P.guide = sn.guide;
   } else if (d.type === 'open') {
-    const g = openGeom(d.o); if (!g) return;
+    let g = openGeom(d.o); if (!g) return;
     if (!d.moved) { commit(); d.moved = true; }
+    const he = hitEdge(p);              // 指が別の壁の近くへ行ったら、その壁へうつす
+    if (he && (he.room.id !== d.o.room || he.edge !== d.o.edge) && nearestOnSeg(p, g.a, g.b).d * P.z > 14) { d.o.room = he.room.id; d.o.edge = he.edge; g = openGeom(d.o); if (!g) return; }
     const h = nearestOnSeg(p, g.a, g.b), half = g.w / 2 / g.L;
     d.o.t = Math.max(Math.min(half, 0.5), Math.min(Math.max(1 - half, 0.5), h.t));
   } else if (d.type === 'tapeEnd') {

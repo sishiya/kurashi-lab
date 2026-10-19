@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
 <script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
 <meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body data-tab="2d">
 <header class="top">
@@ -325,11 +325,12 @@
   <p class="foot"><a href="../">くらしラボ</a> ・ <a href="https://github.com/sishiya/kurashi-lab" target="_blank" rel="noopener">ソースコード</a></p>
 </main>
 </div>
+<datalist id="roomNames"><option value="LDK"><option value="リビング"><option value="ダイニング"><option value="キッチン"><option value="洋室"><option value="和室"><option value="寝室"><option value="子ども部屋"><option value="玄関"><option value="廊下"><option value="浴室"><option value="洗面所"><option value="トイレ"><option value="収納"><option value="バルコニー"></datalist>
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastUndo" hidden>元に戻す</button></div>
 
 <script src="../lib/three@0.128.0/build/three.min.js"></script>
 <script src="js/model.js?v=8"></script>
-<script src="js/plan.js?v=9"></script>
+<script src="js/plan.js?v=10"></script>
 <script src="js/view3d.js?v=8"></script>
 <script src="js/wifi-sim.js?v=5"></script>
 <script src="js/wifi.js?v=6"></script>
@@ -337,7 +338,7 @@
 <script src="js/sun.js?v=4"></script>
 <script src="js/scan.js?v=6"></script>
 <script src="js/scan-walls.js?v=5"></script>
-<script src="js/ui.js?v=13"></script>
+<script src="js/ui.js?v=14"></script>
 <script src="js/main.js?v=5"></script>
 </body>
 </html>
