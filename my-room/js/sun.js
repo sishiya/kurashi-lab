@@ -162,7 +162,7 @@ function sunDaily() {                         // 1日に日が当たる時間（
   const key = sceneKey() + M.sun.doy;
   if (SN.daily && SN.dailyKey === key) return SN.daily;
   const g = floorGrid(0.1); if (!g) return null;
-  const sc = sunScene(), mins = new Float32Array(g.w * g.h), roomAny = new Float32Array(M.rooms.length), roomAvg = new Float32Array(M.rooms.length), cnt = new Float32Array(M.rooms.length);
+  const sc = sunScene(), mins = new Float32Array(g.w * g.h), roomFirst = new Array(M.rooms.length).fill(null), roomLast = new Array(M.rooms.length).fill(null), roomAny = new Float32Array(M.rooms.length), roomAvg = new Float32Array(M.rooms.length), cnt = new Float32Array(M.rooms.length);
   for (let k = 0; k < g.room.length; k++) if (g.room[k] >= 0) cnt[g.room[k]]++;
   for (let m = 5; m < 1440; m += 10) {
     const sp = sunAt(M.sun.doy, m); if (sp.alt <= 0) continue;
@@ -171,9 +171,9 @@ function sunDaily() {                         // 1日に日が当たる時間（
       const k = j * g.w + i, r = g.room[k]; if (r < 0) continue;
       if (litAt(sc, [g.x0 + (i + .5) * g.step, g.y0 + (j + .5) * g.step], d, th)) { mins[k] += 10; any[r] = 1; roomAvg[r] += 10 / cnt[r]; }
     }
-    for (let r = 0; r < any.length; r++) if (any[r]) roomAny[r] += 10;
+    for (let r = 0; r < any.length; r++) if (any[r]) { roomAny[r] += 10; if (roomFirst[r] == null) roomFirst[r] = m - 5; roomLast[r] = m + 5; }
   }
-  SN.daily = { g, mins, roomAny, roomAvg }; SN.dailyKey = key; SN.canvasKey = '';
+  SN.daily = { g, mins, roomAny, roomAvg, roomFirst, roomLast }; SN.dailyKey = key; SN.canvasKey = '';
   return SN.daily;
 }
 
@@ -211,15 +211,16 @@ function sunRender() {
   $('sPlay').innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${SN.anim ? 'M6 4h4v16H6zM14 4h4v16h-4z' : 'M7 4v16l13-8z'}"/></svg>`;
   // 図の下: 太陽のひとこと
   let html = `<p class="sinfo">${sp.alt > 0 ? `☀ 高さ <b>${sp.alt.toFixed(0)}°</b>・<b>${dirName(sp.az)}</b>` : '太陽は沈んでいます'}` + (rs ? `<span class="why">日の出 ${hm(rs.rise)}・日の入り ${hm(rs.set)}</span>` : '');
-  if (!M.opens.some(o => isWindow(o.kind))) html += '<span class="why">「図面」で窓を置くと、日の入り方がわかります</span>';
+  if (!M.opens.some(o => isWindow(o.kind))) html += ' <button id="sGoWin" class="pri">窓を置く</button><span class="why">窓を置くと、日の入り方がわかります</span>';
   else if (SN.view === 'now' && sp.alt > 0) { const m = sunMap(), lit = m ? m.reduce((n, v) => n + v, 0) * 0.05 * 0.05 : 0; html += `<span class="why">${lit > 0 ? `床に日 約 ${lit.toFixed(1)}㎡` : '床に日は当たっていません'}</span>`; }
   else if (SN.view === 'daily') html += '<span class="why">色が濃いほど長く日が当たる（6時間以上でいちばん濃い）</span>';
   html += '</p>';
   if (Math.abs(M.north || 0) < 0.01) html += '<p class="why warn">北の向きが 0°（図の上が北）のままです。図の右上の矢印をドラッグして、間取り図の方位マークに合わせてください。</p>';
   $('sBody').innerHTML = html;
+  if ($('sGoWin')) $('sGoWin').onclick = () => goPlace('window', 'sun');
   // 右の欄: 部屋ごとの1日の日あたり
   const d = M.opens.some(o => isWindow(o.kind)) && !SN.anim ? sunDaily() : null;
-  $('sList').innerHTML = d ? `<p class="hint small">${dateName(S.doy)}・${esc(S.pref >= 0 ? PREFS[S.pref].name + '庁のあたり' : '緯度 ' + S.lat.toFixed(2) + '°')}</p><ul class="wlist">` + M.rooms.map((r, i) => `<li><b>${esc(r.name)}</b> 床のどこかに日が当たる ${minTxt(d.roomAny[i])}<span class="why">床の広さでならすと ${minTxt(d.roomAvg[i])}</span></li>`).join('') + '</ul>'
+  $('sList').innerHTML = d ? `<p class="hint small">${dateName(S.doy)}・${esc(S.pref >= 0 ? PREFS[S.pref].name + '庁のあたり' : '緯度 ' + S.lat.toFixed(2) + '°')}</p><ul class="wlist">` + M.rooms.map((r, i) => `<li><b>${esc(r.name)}</b> ${d.roomAny[i] ? `${hm(d.roomFirst[i])}〜${hm(d.roomLast[i])} に ${minTxt(d.roomAny[i])}` : '日は入りません'}<span class="why">${d.roomAny[i] ? `床の広さでならすと ${minTxt(d.roomAvg[i])}` : ''}</span></li>`).join('') + '</ul>'
     : SN.anim ? '<p class="hint small">再生中…</p>' : '<p class="hint small">窓を置くと、部屋ごとの日あたりの時間が出ます。</p>';
 }
 // 1日を再生（日の出から日の入りまで 12 秒）。3D でも 2D でも

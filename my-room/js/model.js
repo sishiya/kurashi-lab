@@ -4,7 +4,7 @@
 // メートルにするときは scaleInfo().s（1u が何 m か）をかける。y は下向き（画像と同じ）。
 
 window.__roomErr = [];
-window.addEventListener('error', e => window.__roomErr.push(String(e.message || e)));
+window.addEventListener('error', e => window.__roomErr.push(String(e.message || e) + (e.error && e.error.stack ? ' @ ' + e.error.stack.split('\n').slice(1, 3).join(' ') : '')));   // どこで起きたかも残す
 
 const JO_M2 = 1.62;          // 1帖の広さの下限（壁心面積 ÷ 帖数。不動産の表示に関する公正競争規約施行規則）
 const NO_IMG_UNIT = 0.01;    // 画像なしの方眼: 1u＝1cm
@@ -34,7 +34,7 @@ function newModel() {
 // WiFi（段階B）: ルーター・中継機 ext・よく使う場所・もの items（冷蔵庫など。rot は度）は u の点。wallMat は「部屋id:辺」ごとに変えた材料
 function newWifi() { return { router: null, freq: '2.4', house: 'rc', spots: [], wallMat: {}, items: [], ext: [] }; }
 // 家具の搬入（段階C）: 箱の大きさ（m）・運ぶ先の部屋・ぎりぎりの境目（両側のすき間の合計）
-function newMove() { return { preset: 'sofa3', w: 2.0, d: 0.9, h: 0.85, target: null, margin: 0.05 }; }
+function newMove() { return { preset: 'sofa3', w: 2.0, d: 0.9, h: 0.85, target: null, margin: 0.05, mine: [] }; }   // mine: 覚えた家具 {name, w, d, h}
 // 日差し（段階D）: 場所（都道府県の番号、-1 は数字で）・日付（1月1日からの日）・時刻（分、日本時間）・ひさしの出（m）・まわりの建物
 function newSun() {
   const t = new Date(), doy = Math.round((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - Date.UTC(t.getFullYear(), 0, 1)) / 864e5) + 1;
@@ -135,6 +135,10 @@ function scaleInfo() {
     const s = tapes.reduce((acc, t) => acc + t.m / dist(t.a, t.b), 0) / tapes.length;
     return { s, src: 'tape', n: tapes.length };
   }
+  if (M.area > 0) {                     // 専有面積（広告の㎡。壁の中心線で測った面積）÷ なぞった部屋の合計
+    const A = M.rooms.reduce((t, r) => t + Math.abs(polyArea(r.pts)), 0);
+    if (A > 0) return { s: Math.sqrt(M.area / A), src: 'area' };
+  }
   let num = 0, den = 0;
   for (const r of M.rooms) {
     const A = Math.abs(polyArea(r.pts));
@@ -144,7 +148,7 @@ function scaleInfo() {
   if (!M.img) return { s: NO_IMG_UNIT, src: 'grid' };
   return { s: 10 / Math.max(M.img.w, M.img.h), src: 'none' }; // 画像の長い辺を 10m と仮に置く
 }
-const scaleEst = () => { const k = scaleInfo().src; return k === 'jo' || k === 'none'; };   // 縮尺が推定か
+const scaleEst = () => { const k = scaleInfo().src; return k === 'jo' || k === 'area' || k === 'none'; };   // 縮尺が推定か
 const ceilH = () => M.ceil || DEF.ceil;
 const wallT = () => M.wallT || DEF.wallT;
 function openDims(o) { // m。null は推定（ふつうの値）
@@ -253,6 +257,7 @@ function fixModel(m) {       // 読みこんだものの形をそろえる（足
   out.wifi = Object.assign(newWifi(), out.wifi && typeof out.wifi === 'object' ? out.wifi : {});
   for (const k of ['spots', 'items', 'ext']) if (!Array.isArray(out.wifi[k])) out.wifi[k] = [];
   out.move = Object.assign(newMove(), out.move && typeof out.move === 'object' ? out.move : {});
+  if (!Array.isArray(out.move.mine)) out.move.mine = [];
   out.sun = Object.assign(newSun(), out.sun && typeof out.sun === 'object' ? out.sun : {});
   if (!Array.isArray(out.sun.bldgs)) out.sun.bldgs = [];
   if (!out.wifi.wallMat || typeof out.wifi.wallMat !== 'object') out.wifi.wallMat = {};

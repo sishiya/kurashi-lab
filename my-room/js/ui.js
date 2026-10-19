@@ -55,6 +55,7 @@ function renderGuide() {
     text = M.rooms.length || U.tab !== '2d' ? toolHint() : '';
     if (M.rooms.length && U.tab === '2d') btns.push(['案内', () => gotoStep(2)]);
   }
+  if (U.returnTab && U.tab === '2d') { const nm = { move: '搬入', sun: '日差し', wifi: 'WiFi' }[U.returnTab]; btns.unshift([`${nm}にもどる`, () => { const t = U.returnTab; U.returnTab = null; setTab(t); }, 'pri']); }
   if (P.tool === 'trace' && P.trace.length && U.tab === '2d') text = `${P.trace.length}点。` + (P.trace.length >= 3 ? '最初の角を押すか「部屋にする」で1部屋になります。' : 'つづけて角を押してください。');
   if ((P.tool === 'tape' || P.tool === 'align') && P.tapeA && U.tab === '2d') text = 'もう1点を押してください。';
   $('gText').textContent = text || '';
@@ -87,11 +88,12 @@ const TAB_IDS = [['tab2d', '2d'], ['tab3d', '3d'], ['tabWifi', 'wifi'], ['tabMov
 function setTab(t) {
   if (t !== '2d' && !M.rooms.length) { toast('先に「図面」で部屋を作ってください（見本で試すこともできます）'); return; }
   const was = U.tab; U.tab = t; document.body.dataset.tab = t;
+  if (t !== '2d') U.returnTab = null;
   for (const [id, k] of TAB_IDS) { $(id).classList.toggle('on', t === k); $(id).setAttribute('aria-selected', t === k); }
   const flat = t !== '3d' && !(t === 'sun' && SN.view === '3d'), own = k => k === 'wifi' || k === 'move' || k === 'sun';
   $('plan').hidden = !flat; $('v3').hidden = flat;
   $('tools').hidden = t !== '2d'; $('wtools').hidden = t !== 'wifi'; $('mtools').hidden = t !== 'move'; $('stools').hidden = t !== 'sun'; $('v3opts').hidden = t !== '3d';
-  $('zoom').hidden = !flat;
+  $('zoom').hidden = false;   // 3D では画像で保存だけ（＋−全体は CSS で隠す）
   if (own(was) && !own(t)) setTool(U.planTool || 'select');
   if (!own(was) && own(t)) U.planTool = P.tool;
   if (t === 'wifi' && was !== 'wifi') setTool(M.wifi.router ? 'spot' : 'router');
@@ -118,7 +120,7 @@ function renderChip() {
   const c = $('vchip'), si = scaleInfo();
   if (U.tab !== '2d' || !M.rooms.length) { c.hidden = true; return; }
   c.hidden = false;
-  const t = { scan: ['縮尺 3D スキャン', 'm'], tape: ['縮尺 メジャー', 'm'], jo: ['縮尺 帖から（推定）', 'e'], grid: ['方眼 1マス＝1m', 'm'], none: ['縮尺 まだ（帖かメジャーで）', 'e'] }[si.src];
+  const t = { scan: ['縮尺 3D スキャン', 'm'], tape: ['縮尺 メジャー', 'm'], area: ['縮尺 専有面積から（推定）', 'e'], jo: ['縮尺 帖から（推定）', 'e'], grid: ['方眼 1マス＝1m', 'm'], none: ['縮尺 まだ（帖かメジャーで）', 'e'] }[si.src];
   c.textContent = t[0]; c.className = 'vchip ' + (t[1] === 'm' ? 'is-meas' : 'is-est');
 }
 
@@ -186,6 +188,7 @@ function renderScale() {
   el.innerHTML = {
     scan: `3D スキャンから ${badge(true)}`,
     tape: `メジャーから ${badge(true)}（${si.n}か所の平均）`,
+    area: `専有面積から ${badge(false)}（なぞった部屋の合計が ${M.area}㎡ になるように）`,
     jo: `帖から ${badge(false)}`,
     grid: '方眼（1マス＝1m）',
     none: `まだ決まっていません ${badge(false)}`,
@@ -193,13 +196,14 @@ function renderScale() {
 }
 function renderHouse() {
   const set = (id, v, ph) => { const el = $(id); if (document.activeElement !== el) el.value = v; if (ph != null) el.placeholder = ph; };
+  set('area', M.area || '');
   set('ceil', cmOut(M.ceil), cmOut(DEF.ceil)); set('wallT', cmOut(M.wallT), cmOut(DEF.wallT)); set('floor', M.floor || 1);
   set('north', M.north || 0); $('northOut').textContent = Math.round(M.north || 0) + '°';
   set('imgRot', M.imgRot || 0); $('rotOut').textContent = (Math.round((M.imgRot || 0) * 10) / 10) + '°';
 }
 function renderTable() {
   const si = scaleInfo(), est = scaleEst(), rows = [];
-  rows.push(['縮尺', si.src === 'scan' ? '3D スキャンから' : si.src === 'tape' ? 'メジャーから' : si.src === 'jo' ? '帖から' : si.src === 'grid' ? '方眼（1マス＝1m）' : '未設定', !est]);
+  rows.push(['縮尺', si.src === 'scan' ? '3D スキャンから' : si.src === 'tape' ? 'メジャーから' : si.src === 'area' ? '専有面積から' : si.src === 'jo' ? '帖から' : si.src === 'grid' ? '方眼（1マス＝1m）' : '未設定', !est]);
   rows.push(['天井の高さ', (ceilH() * 100).toFixed(0) + ' cm', !!M.ceil]);
   rows.push(['壁の厚さ', (wallT() * 100).toFixed(0) + ' cm', !!M.wallT]);
   for (const r of M.rooms) rows.push([esc(r.name) + ' の広さ', (est ? '約 ' : '') + roomAreaM2(r).toFixed(1) + ' ㎡' + (r.jo ? `（図面 ${r.jo}帖）` : ''), !est]);
@@ -246,6 +250,22 @@ function loadSample() {
   U.guideOn = false;   // 見本はもうできあがっているので、作り方の案内は閉じる
   changed({ refit: true }); setTab('2d'); setTool('select');
   toast('見本の間取りを開きました。上のタブで 3D・WiFi・搬入・日差しを見られます', !!had);
+}
+// 搬入・日差しで足りないもの（玄関・窓）を置きに図面へ。置いたら「〇〇にもどる」
+function goPlace(kind, back) {
+  U.returnTab = back;
+  setTab('2d'); setTool('open'); P.openKind = kind; $('openKind').value = kind; renderGuide();
+  toast(`壁を押して「${OPEN_KINDS[kind]}」を置いてください`);
+}
+// いま見ている図・3D を画像で保存（この端末にダウンロード。外には送らない）
+function saveShot() {
+  let url;
+  if ($('v3').hidden) { planDraw(); url = P.cv.toDataURL('image/png'); }
+  else { viewNow(); url = V.R.domElement.toDataURL('image/png'); }
+  const a = document.createElement('a'), d = new Date(), nm = { '2d': '図面', '3d': '3D', wifi: 'WiFi', move: '搬入', sun: '日差し' }[U.tab];
+  a.href = url; a.download = `わが家の模型-${nm}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('画像を保存しました（この端末に）');
 }
 function startGrid() { U.gridMode = true; setTool('trace'); gotoStep(1); renderEmpty(); toast('方眼の上で、部屋の角を順に押してください'); }
 
@@ -294,6 +314,7 @@ function uiInit() {
   $('cut').onchange = e => { V.cut = e.target.checked; viewBuild(); };
   for (const [id, k] of TAB_IDS) $(id).onclick = () => setTab(k);
   wifiInit(); moveInit(); sunInit(); scanInit();
+  $('shot').onclick = saveShot;
   $('zIn').onclick = () => planZoom(1.3); $('zOut').onclick = () => planZoom(1 / 1.3); $('zFit').onclick = planFit;
   $('tBack').onclick = planUndoPoint; $('tClose').onclick = planCloseTrace;
   $('undo').onclick = doUndo;
@@ -344,6 +365,7 @@ function uiInit() {
   });
 
   const house = (id, fn) => { $(id).onchange = e => edit(() => fn(e.target.value)); };
+  house('area', v => { const x = parseFloat(v); M.area = isFinite(x) && x > 0 ? x : null; });
   house('ceil', v => { M.ceil = cmIn(v); }); house('wallT', v => { M.wallT = cmIn(v); });
   house('floor', v => { const n = parseInt(v, 10); M.floor = n > 0 ? n : 1; });
   $('north').oninput = e => { M.north = +e.target.value; $('northOut').textContent = M.north + '°'; requestDraw(); };
@@ -372,6 +394,7 @@ function uiInit() {
     if ((e.key === 'Backspace' || e.key === 'Delete') && U.tab === '2d' && P.tool === 'trace' && P.trace.length) { e.preventDefault(); planUndoPoint(); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && P.sel && $('sDel') && !$('selbar').hidden) { e.preventDefault(); $('sDel').click(); return; }
     if (U.tab === '2d' && e.key === 'Enter' && P.tool === 'trace') planCloseTrace();
+    if (U.tab === '2d' && !mod && ['1', '2', '3', '4'].includes(e.key)) setTool(['trace', 'select', 'open', 'tape'][+e.key - 1]);   // 1〜4 で道具
     if (U.tab === 'sun' && e.key === ' ') { e.preventDefault(); $('sPlay').click(); }
   });
   document.addEventListener('keyup', e => { if (e.key === 'Shift') P.shift = false; if (e.key === ' ') P.space = false; });

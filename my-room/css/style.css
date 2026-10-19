@@ -57,6 +57,12 @@ input[type=range]{accent-color:var(--accent)}
 .v3-msg{margin:0;padding:24px;color:var(--muted)}
 .zoom{position:absolute;right:8px;bottom:8px;display:flex;gap:4px}
 .zoom button{min-width:36px;padding:2px 8px;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(4px)}
+.zoom svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+body[data-tab="3d"] #zIn,body[data-tab="3d"] #zOut,body[data-tab="3d"] #zFit{display:none}
+.mine{display:flex;flex-wrap:wrap;gap:6px}
+.mine .chip{gap:6px}
+.mine .x{opacity:.6;font-weight:400}
+#mineName{flex:1 1 140px;min-width:0}
 .drop{position:absolute;inset:8px;display:flex;align-items:center;justify-content:center;border:3px dashed var(--accent);border-radius:10px;background:color-mix(in srgb,var(--bg) 80%,transparent);font-weight:700;color:var(--accent);pointer-events:none}
 .drop[hidden]{display:none}
 .tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
@@ -202,7 +208,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
   .guide{font-size:13px}
   .panel section{padding:10px 12px}
   /* 上に固定する部分が画面より高くならないように */
-  .stage{max-height:100vh;overflow-y:auto;overscroll-behavior:contain}
+  .stage{max-height:100vh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}   /* 横には動かない（道具の行の負の余白で横にずれないように） */
   body[data-tab="wifi"] .view,body[data-tab="move"] .view,body[data-tab="sun"] .view{height:36vh;min-height:200px}
   /* 道具は1行で、はみ出す分は横にすべらせる（何段にも折り返さない） */
   .tools,.wtop{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:0 16px 2px}
