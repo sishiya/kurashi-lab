@@ -5,7 +5,7 @@
 // 1回ずつ波を出し、マスごとに「いちばん弱い印の強さ」をとれば、そこにルーターを置いたときの結果になる。
 
 const WS = {
-  map: null, mapKey: '', good: null, goodKey: '', best: null,
+  maps: {}, comb: null, combKey: '', itemKind: 'fridge', good: null, goodKey: '', best: null,
   view: 'signal', running: false, prog: 0, progText: '', token: null, timer: 0, msg: '',
   canvas: document.createElement('canvas'), canvasKey: '',
 };
@@ -45,6 +45,19 @@ function autoMatOf(room, edge) {      // 「自動」のときに何になるか
   }
   return HOUSES[M.wifi.house].outer;
 }
+// 電波に効くもの（大きさは目安。上から見た幅 w × 奥行き d、m）
+const ITEMS = {
+  fridge: { name: '冷蔵庫', mat: 'metal', w: 0.65, d: 0.65 },
+  bath:   { name: '浴槽のお湯', mat: 'water', w: 1.10, d: 0.65 },
+  person: { name: '人', mat: 'water', w: 0.46, d: 0.26, round: true },
+  tv:     { name: 'テレビ', mat: 'metal', w: 1.20, d: 0.04 },
+};
+// もののかたち（u の点 p が中にあるか）
+function inItem(it, p) {
+  const d = ITEMS[it.kind], s = scaleInfo().s, a = -(it.rot || 0) * Math.PI / 180;
+  const x = (p[0] - it.p[0]) * s, y = (p[1] - it.p[1]) * s, lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
+  return d.round ? (lx / (d.w / 2)) ** 2 + (ly / (d.d / 2)) ** 2 <= 1 : Math.abs(lx) <= d.w / 2 && Math.abs(ly) <= d.d / 2;
+}
 const openMat = k => k === 'entrance' ? 'metal' : isWindow(k) ? 'glass' : 'wood';   // ドア・引き戸は閉めた木、玄関は金属
 
 // 壁のかけら（m）: { a, b, mat, wall: true|false（開口） }
@@ -67,7 +80,7 @@ function wallSegs() {
 
 // ---------- 材料のマス目 ----------
 function gridKey() {
-  return JSON.stringify([M.rooms.map(r => r.pts), M.opens.map(o => [o.room, o.edge, o.t, o.kind, o.w, o.h, o.sill]), scaleInfo().s, M.ceil, M.wifi.house, M.wifi.wallMat]);
+  return JSON.stringify([M.rooms.map(r => r.pts), M.opens.map(o => [o.room, o.edge, o.t, o.kind, o.w, o.h, o.sill]), scaleInfo().s, M.ceil, M.wifi.house, M.wifi.wallMat, M.wifi.items.map(i => [i.kind, i.p, i.rot])]);
 }
 let GRID = null;
 function wGrid() {
@@ -93,6 +106,15 @@ function wGrid() {
       if (al < -ea || al > L + eb) continue;
       const ac = (qx * sg.n[0] + qy * sg.n[1]) * 100;
       for (const [l0, l1] of m.layers) if (ac >= l0 && ac <= l1) { ids[j * w + i] = m.id; break; }
+    }
+  }
+  for (const it of M.wifi.items) {          // 冷蔵庫・浴槽など
+    const d = ITEMS[it.kind]; if (!d) continue;
+    const c = [it.p[0] * s, it.p[1] * s], R = Math.hypot(d.w, d.d) / 2 + DX, id = WMAT[d.mat].id;
+    const i0 = Math.max(0, Math.floor((c[0] - R - x0) / DX)), i1 = Math.min(w - 1, Math.ceil((c[0] + R - x0) / DX));
+    const j0 = Math.max(0, Math.floor((c[1] - R - y0) / DX)), j1 = Math.min(h - 1, Math.ceil((c[1] + R - y0) / DX));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      if (inItem(it, [(x0 + (i + .5) * DX) / s, (y0 + (j + .5) * DX) / s])) ids[j * w + i] = id;
     }
   }
   GRID = { key, ver: key, w, h, ids, x0, y0, s, segs };
@@ -128,9 +150,28 @@ function wallsText(mats) {
 }
 
 // ---------- 計算をまわす ----------
-function routerKey() { return gridKey() + JSON.stringify([M.wifi.router, M.wifi.freq]); }
+// 電波を出すもの: ルーターと中継機。地図は1台ずつ計算して覚えておき、場所ごとに強いほうをとる（中継機は別のチャンネルで出す）
+function sources() {
+  if (!M.wifi.router) return [];
+  return [{ id: 'router', name: 'ルーター', p: M.wifi.router }, ...M.wifi.ext.map((e, i) => ({ id: e.id, name: '中継機' + (M.wifi.ext.length > 1 ? i + 1 : ''), p: e.p }))];
+}
+const srcKey = p => gridKey() + JSON.stringify([p, M.wifi.freq]);
+function routerKey() { return sources().map(x => srcKey(x.p)).join('|'); }
+function combinedMap() {
+  const srcs = sources(); if (!srcs.length) return null;
+  const key = routerKey();
+  if (WS.comb && WS.combKey === key) return WS.comb;
+  const ms = srcs.map(x => WS.maps[srcKey(x.p)]);
+  if (ms.some(m => !m)) return null;
+  const out = Float32Array.from(ms[0]);
+  for (const m of ms.slice(1)) for (let i = 0; i < out.length; i++) out[i] = Math.max(out[i], m[i]);
+  WS.comb = out; WS.combKey = key; WS.canvasKey = '';
+  return out;
+}
+// 中継機の場所でのルーターの強さ（中継機とルーターのつながり）
+function extLink(e) { const m = M.wifi.router && WS.maps[srcKey(M.wifi.router)]; return m && GRID ? mapAt(GRID, m, e.p) : null; }
 function goodKey() { return gridKey() + JSON.stringify([M.wifi.spots.map(p => p.p), M.wifi.freq]); }
-function wifiStale() { return !M.wifi.router || !WS.map || WS.mapKey !== routerKey(); }
+function wifiStale() { return !M.wifi.router || !combinedMap(); }
 function wifiSchedule(ms = 250) {            // 変わったら少し待ってから計算（ドラッグの途中では呼ばない）
   clearTimeout(WS.timer);
   WS.timer = setTimeout(() => { if (U.tab === 'wifi' && wifiStale() && M.wifi.router) wifiRouter(); }, ms);
@@ -142,11 +183,18 @@ async function wifiRouter() {
   if (!g) { WS.msg = '先に「図面」で部屋をなぞってください。'; wifiRender(); return; }
   if (g.tooBig) { WS.msg = `家が大きすぎて計算できません（${g.wm.toFixed(0)}×${g.hm.toFixed(0)}m。いまは面積 ${(WF.MAX_CELLS * WF.DX * WF.DX).toFixed(0)}㎡ まで）。`; wifiRender(); return; }
   wifiStop();
-  const tok = WS.token = { stop: false }, key = routerKey();
-  WS.running = true; WS.msg = ''; WS.progText = '電波を計算しています'; WS.prog = 0; wifiRender();
+  const tok = WS.token = { stop: false }, srcs = sources();
+  const keep = new Set(srcs.map(x => srcKey(x.p)));
+  for (const k of Object.keys(WS.maps)) if (!keep.has(k)) delete WS.maps[k];   // もう使わない地図は捨てる
+  const todo = srcs.filter(x => !WS.maps[srcKey(x.p)]);
+  WS.running = true; WS.msg = ''; WS.prog = 0;
   try {
-    const map = await wfRun(g, toCell(g, M.wifi.router), M.wifi.freq, p => { WS.prog = p; wifiProg(); }, tok);
-    WS.map = map; WS.mapKey = key; WS.view = 'signal'; WS.canvasKey = '';
+    for (let k = 0; k < todo.length; k++) {
+      const x = todo[k], key = srcKey(x.p);
+      WS.progText = '電波を計算しています' + (srcs.length > 1 ? `（${x.name}）` : ''); wifiRender();
+      WS.maps[key] = await wfRun(g, toCell(g, x.p), M.wifi.freq, p => { WS.prog = (k + p) / todo.length; wifiProg(); }, tok);
+    }
+    WS.view = 'signal'; WS.canvasKey = '';
   } catch (e) { if (e !== 'stop') { WS.msg = '計算できませんでした: ' + e; window.__roomErr.push(String(e)); } }
   if (WS.token === tok) { WS.running = false; WS.token = null; }
   wifiRender(); requestDraw();
@@ -203,8 +251,13 @@ function wifiCanvas(map) {        // 地図を色の画像に（F×F マスで1�
 }
 const wifiOn = () => U.tab === 'wifi';
 function spotValues() {
-  if (!WS.map || WS.mapKey !== routerKey()) return null;
-  return M.wifi.spots.map(sp => ({ sp, db: mapAt(GRID, WS.map, sp.p), walls: wallsBetween(M.wifi.router, sp.p) }));
+  if (!combinedMap()) return null;
+  const srcs = sources();
+  return M.wifi.spots.map(sp => {
+    let best = null;
+    for (const x of srcs) { const v = mapAt(GRID, WS.maps[srcKey(x.p)], sp.p); if (!best || v > best.db) best = { db: v, src: x }; }
+    return { sp, db: best.db, src: best.src, walls: wallsBetween(best.src.p, sp.p) };
+  });
 }
 function wifiProg() { const b = $('wProg'); if (b) b.style.width = Math.round(WS.prog * 100) + '%'; }
 function wifiRender() {
@@ -224,10 +277,13 @@ function wifiRender() {
     if (WS.view === 'good' && WS.best) {
       const cur = vals && vals.length ? Math.min(...vals.map(v => v.db)) : null;
       html = `<p class="wsum">おすすめの置き場所（★）: いちばん弱い場所でも <b>約 ${WS.best.v.toFixed(0)} dBm</b>（${judge(WS.best.v)[1]}）` +
-        (cur != null ? `。いまの置き場所は ${cur.toFixed(0)} dBm（${WS.best.v - cur >= 0 ? '+' : '−'}${Math.abs(WS.best.v - cur).toFixed(0)} dB）` : '') +
+        (cur != null ? `。いまは ${cur.toFixed(0)} dBm（${WS.best.v - cur >= 0 ? '+' : '−'}${Math.abs(WS.best.v - cur).toFixed(0)} dB）` : '') +
+        (M.wifi.ext.length ? '。★はルーター1台だけのときの場所です' : '') +
         ` <button id="wMove" class="pri">ここに置く</button></p>`;
     } else if (vals && vals.length) {
-      html = '<ul class="wlist">' + vals.map(v => { const j = judge(v.db); return `<li><span class="lv lv${j[0]}">${'▮'.repeat(j[0])}${'▯'.repeat(4 - j[0])}</span><b>${esc(v.sp.name)}</b> ${v.db.toFixed(0)} dBm ${j[1]}<span class="why">${esc(wallsText(v.walls))}</span></li>`; }).join('') + '</ul>';
+      const many = sources().length > 1;
+      html = '<ul class="wlist">' + vals.map(v => { const j = judge(v.db); return `<li><span class="lv lv${j[0]}">${'▮'.repeat(j[0])}${'▯'.repeat(4 - j[0])}</span><b>${esc(v.sp.name)}</b> ${v.db.toFixed(0)} dBm ${j[1]}${many ? `（${esc(v.src.name)}から）` : ''}<span class="why">${esc(wallsText(v.walls))}</span></li>`; }).join('') +
+        sources().slice(1).map(x => { const l = extLink(x); return l == null ? '' : `<li class="ext"><b>${esc(x.name)}</b>とルーターのつながり ${l.toFixed(0)} dBm ${judge(l)[1]}${l < -67 ? '<span class="why">−67 dBm より弱いと、中継の速さが落ちやすい（目安）</span>' : ''}</li>`; }).join('') + '</ul>';
     } else if (vals) html = '<p class="wmsg">「よく使う場所」に印を置くと、そこでの強さと、おすすめの置き場所がわかります。</p>';
     else html = '<p class="wmsg">計算を待っています。</p>';
   }
@@ -245,7 +301,8 @@ function renderWifiTable() {       // 下の説明: 壁1枚で弱まる量
   el.innerHTML = '<tr><th>材料</th><th>厚さ</th><th>2.4GHz</th><th>5GHz</th></tr>' + rows.join('');
 }
 function wifiHint() {
-  return { router: 'ルーターをドラッグして、はなすと計算します。', spot: 'よく使う場所（ソファー・机・ベッドなど）を押して印を置きます。', wall: '壁を押すと、材料を変えられます。' }[P.tool] || '';
+  return { router: 'ルーターをドラッグして、はなすと計算します。', ext: '中継機を置きたい所を押します（2台まで）。ルーターとのつながりも出します。', spot: 'よく使う場所（ソファー・机・ベッドなど）を押して印を置きます。',
+    item: `押した所に「${ITEMS[WS.itemKind].name}」を置きます。電波をさえぎる・吸うものです。`, wall: '壁を押すと、材料を変えられます。' }[P.tool] || '';
 }
 
 // えらんだもの（図のすぐ下の1行）
@@ -276,9 +333,27 @@ function wifiSel(bar, s) {
     });
     return true;
   }
+  if (s.type === 'ext') {
+    const e = byId(M.wifi.ext, s.id); if (!e) return false;
+    const l = extLink(e);
+    bar.innerHTML = `<span class="k">中継機</span><span class="note">${l == null ? 'ルーターとのつながりは計算のあとに出ます' : `ルーターとのつながり ${l.toFixed(0)} dBm（${judge(l)[1]}）。−67 dBm より弱いと中継の速さが落ちやすい（目安）`}</span><button id="sDel" class="danger">外す</button>`;
+    $('sDel').onclick = () => edit(() => { M.wifi.ext = M.wifi.ext.filter(x => x !== e); P.sel = null; });
+    return true;
+  }
+  if (s.type === 'item') {
+    const it = byId(M.wifi.items, s.id); if (!it) return false;
+    const d = ITEMS[it.kind];
+    bar.innerHTML = `<span class="k">もの</span><select id="sItem" aria-label="種類">${Object.entries(ITEMS).map(([k, v]) => `<option value="${k}"${k === it.kind ? ' selected' : ''}>${v.name}</option>`).join('')}</select>
+      <button id="sRot">90°回す</button><button id="sDel" class="danger">消す</button>
+      <span class="note">${WMAT[d.mat].name}として計算・${Math.round(d.w * 100)}×${Math.round(d.d * 100)}cm（目安）</span>`;
+    $('sItem').onchange = e => edit(() => { it.kind = e.target.value; });
+    $('sRot').onclick = () => edit(() => { it.rot = ((it.rot || 0) + 90) % 360; });
+    $('sDel').onclick = () => edit(() => { M.wifi.items = M.wifi.items.filter(x => x !== it); P.sel = null; });
+    return true;
+  }
   if (s.type === 'router') {
     bar.innerHTML = `<span class="k">ルーター</span><span class="note">ドラッグで動かせます。出力は 20dBm（目安）・${WF.FREQ[M.wifi.freq].name}</span><button id="sDel" class="danger">外す</button>`;
-    $('sDel').onclick = () => edit(() => { M.wifi.router = null; P.sel = null; WS.map = null; });
+    $('sDel').onclick = () => edit(() => { M.wifi.router = null; P.sel = null; });
     return true;
   }
   return false;
@@ -287,12 +362,26 @@ function wifiSel(bar, s) {
 // ---------- 図の上の操作と描画（plan.js から呼ばれる） ----------
 const nearPx = (a, b, px) => dist(a, b) * P.z < px;
 P.ext = {
-  tools: ['router', 'spot', 'wall'],
+  tools: ['router', 'ext', 'spot', 'item', 'wall'],
   active: wifiOn,
   down(p, sp, touch) {
     if (M.wifi.router && nearPx(p, M.wifi.router, 22)) { select({ type: 'router' }); return { ext: 'router', touch, moved: false }; }
+    const ex = M.wifi.ext.find(x => nearPx(p, x.p, 20));
+    if (ex) { select({ type: 'ext', id: ex.id }); return { ext: 'pt', s: ex, touch, moved: false }; }
     const hit = M.wifi.spots.find(x => nearPx(p, x.p, 18));
     if (hit) { select({ type: 'spot', id: hit.id }); return { ext: 'spot', s: hit, touch, moved: false }; }
+    const ih = [...M.wifi.items].reverse().find(x => inItem(x, p) || nearPx(p, x.p, 14));
+    if (ih) { select({ type: 'item', id: ih.id }); return { ext: 'pt', s: ih, touch, moved: false }; }
+    if (P.tool === 'ext') {
+      if (!M.wifi.router) { toast('先にルーターを置いてください'); return null; }
+      if (M.wifi.ext.length >= 2) { toast('中継機は2台までです'); return null; }
+      commit(); const e2 = { id: newId('e'), p: p.slice() }; M.wifi.ext.push(e2); select({ type: 'ext', id: e2.id });
+      return { ext: 'pt', s: e2, touch, moved: true };
+    }
+    if (P.tool === 'item') {
+      commit(); const it = { id: newId('i'), kind: WS.itemKind, p: p.slice(), rot: 0 }; M.wifi.items.push(it); select({ type: 'item', id: it.id });
+      return { ext: 'pt', s: it, touch, moved: true };
+    }
     if (P.tool === 'router') {
       commit(); M.wifi.router = p.slice(); select({ type: 'router' });
       return { ext: 'router', touch, moved: true };
@@ -320,9 +409,10 @@ P.ext = {
   up(d) { if (d.moved) changed(); },
   under(g) {                       // 強さの地図（部屋の形で切りぬく）
     if (!wifiOn() || !GRID || GRID.tooBig) return;
-    const map = WS.view === 'good' && WS.good && WS.goodKey === goodKey() ? WS.good : WS.map && WS.mapKey === routerKey() ? WS.map : null;
+    const good = WS.view === 'good' && WS.good && WS.goodKey === goodKey();
+    const map = good ? WS.good : combinedMap();
     if (!map) return;
-    const ck = (WS.view === 'good' ? 'g' : 'r') + (WS.view === 'good' ? WS.goodKey : WS.mapKey);
+    const ck = good ? 'g' + WS.goodKey : 'r' + WS.combKey;
     if (WS.canvasKey !== ck) { wifiCanvas(map); WS.canvasKey = ck; }
     const s = GRID.s, F = WF.F, k = F * WF.DX / s * P.z;
     g.save();
@@ -347,6 +437,24 @@ P.ext = {
         if (r) { const [a, b] = roomEdge(r, P.sel.edge).map(toS); g.strokeStyle = C.acc; g.lineWidth = 2; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); g.setLineDash([]); }
       }
     }
+    const sc = scaleInfo().s;
+    for (const it of M.wifi.items) {           // 冷蔵庫・浴槽など
+      const d = ITEMS[it.kind]; if (!d) continue;
+      const q = toS(it.p), isSel = P.sel && P.sel.type === 'item' && P.sel.id === it.id, w = d.w / sc * P.z, h = d.d / sc * P.z;
+      g.save(); g.translate(q[0], q[1]); g.rotate((it.rot || 0) * Math.PI / 180);
+      g.beginPath(); if (d.round) g.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); else g.rect(-w / 2, -h / 2, w, Math.max(h, 2));
+      g.fillStyle = WMAT[d.mat].col; g.globalAlpha = 0.9; g.fill(); g.globalAlpha = 1;
+      g.lineWidth = isSel ? 2.5 : 1.2; g.strokeStyle = isSel ? C.acc : C.ink; g.stroke();
+      g.restore();
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      label(g, d.name, q[0], q[1] + Math.max(w, h) / 2 + 10, '11px', C.ink, C.bg);
+    }
+    if (M.wifi.router) for (const e of M.wifi.ext) {   // 中継機とルーターをつなぐ点線
+      const a = toS(M.wifi.router), b = toS(e.p), l = extLink(e);
+      g.strokeStyle = C.muted; g.lineWidth = 1.5; g.setLineDash([4, 5]);
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); g.setLineDash([]);
+      if (l != null) { g.textAlign = 'center'; g.textBaseline = 'middle'; label(g, l.toFixed(0) + ' dBm', (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 10, '11px', l < -67 ? C.est : C.muted, C.bg); }
+    }
     const vals = spotValues();
     for (const sp of M.wifi.spots) {          // よく使う場所
       const q = toS(sp.p), v = vals && vals.find(x => x.sp === sp), isSel = P.sel && P.sel.type === 'spot' && P.sel.id === sp.id;
@@ -356,6 +464,11 @@ P.ext = {
       g.textAlign = 'center'; g.textBaseline = 'middle';
       label(g, sp.name + (v && WS.view === 'signal' ? ' ' + v.db.toFixed(0) : ''), q[0], q[1] - 18, 'bold 12px', C.ink, C.bg);
     }
+    M.wifi.ext.forEach(e => {                  // 中継機（丸い箱）
+      const q = toS(e.p), isSel = P.sel && P.sel.type === 'ext' && P.sel.id === e.id;
+      g.beginPath(); g.arc(q[0], q[1], 10, 0, Math.PI * 2); g.fillStyle = isSel ? C.acc : C.ink; g.fill(); g.lineWidth = 2; g.strokeStyle = C.bg; g.stroke();
+      g.fillStyle = C.bg; g.font = 'bold 11px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('中', q[0], q[1] + 0.5);
+    });
     if (M.wifi.router) {                       // ルーター（箱とアンテナ）
       const q = toS(M.wifi.router), isSel = P.sel && P.sel.type === 'router';
       g.save(); g.translate(q[0], q[1]);
@@ -380,4 +493,6 @@ function wifiInit() {
   document.querySelectorAll('[data-wview]').forEach(b => b.onclick = () => { WS.view = b.dataset.wview; wifiRender(); requestDraw(); });
   $('wHouse').onchange = e => edit(() => { M.wifi.house = e.target.value; });
   $('wFind').onclick = wifiFindBest;
+  $('itemKind').innerHTML = Object.entries(ITEMS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+  $('itemKind').onchange = e => { WS.itemKind = e.target.value; renderGuide(); };
 }

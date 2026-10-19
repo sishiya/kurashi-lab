@@ -94,6 +94,8 @@ input[type=range]{accent-color:var(--accent)}
 .wlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
 .wlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
 .wlist .why{font-size:12px;color:var(--muted)}
+.wlist li.ext{font-size:13px;color:var(--muted)}
+.wlist li.ext b{color:var(--ink)}
 .lv{font-size:11px;letter-spacing:-1px;font-family:monospace}
 .lv4,.lv3{color:#2f9e5a}.lv2{color:var(--est)}.lv1,.lv0{color:var(--danger)}
 .wsum,.wmsg{margin:6px 0 0}
@@ -153,4 +155,8 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
   .seg button{padding:4px 9px;font-size:13px}
   .guide{font-size:13px}
   .panel section{padding:10px 12px}
+  /* 上に固定する部分が画面より高くならないように */
+  .stage{max-height:100vh;overflow-y:auto;overscroll-behavior:contain}
+  body[data-tab="wifi"] .view{height:36vh;min-height:200px}
+  .wlist{max-height:7.5em;overflow-y:auto}
 }
