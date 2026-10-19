@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stops a commit when tools/check-public.ps1 finds personal info or secrets in the staged files.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-public.ps1 -Staged
