@@ -11,7 +11,7 @@ const P = {
   sel: null,                   // { type: 'room'|'open'|'tape', id }
   drag: null, pointers: new Map(), pinch: null, loupe: null,
   imgAlpha: 0.55, shift: false, dirty: false,
-  onChange: () => {}, onSelect: () => {}, onRoomClosed: () => {}, onTapeDone: () => {}, onTraceChange: () => {},
+  onChange: () => {}, onSelect: () => {}, onRoomClosed: () => {}, onTapeDone: () => {}, onTraceChange: () => {}, onAlign: () => {},
 };
 
 const fmtM = (m, est) => (est ? '約 ' : '') + m.toFixed(2) + ' m';
@@ -47,6 +47,11 @@ function requestDraw() {
   requestAnimationFrame(() => { P.dirty = false; planDraw(); });
 }
 
+// 回した下じきの4つの角（u）
+function imgCorners() {
+  const w = M.img.w, h = M.img.h, a = (M.imgRot || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+  return [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => [w / 2 + (x - w / 2) * co - (y - h / 2) * si, h / 2 + (x - w / 2) * si + (y - h / 2) * co]);
+}
 // 全体が入るように
 function planFit() {
   if (!P.W) return;
@@ -55,7 +60,7 @@ function planFit() {
   M.rooms.forEach(r => r.pts.forEach(add));
   M.tapes.forEach(t => { add(t.a); add(t.b); });
   P.trace.forEach(add);
-  if (M.img) { add([0, 0]); add([M.img.w, M.img.h]); }
+  if (M.img) imgCorners().forEach(add);
   if (!isFinite(x0)) { const s = scaleInfo().s; x0 = 0; y0 = 0; x1 = 8 / s; y1 = 6 / s; }
   const pad = 28, w = Math.max(x1 - x0, 1e-3), h = Math.max(y1 - y0, 1e-3);
   P.z = Math.min((P.W - pad * 2) / w, (P.H - pad * 2) / h);
@@ -141,6 +146,20 @@ function hitEdge(p) {
   }
   return best;
 }
+// えらんだ部屋の辺のまん中（角を足す所）。辺が画面で短いときは出さない
+function selRoomMids() {
+  const r = P.sel && (P.sel.type === 'room' || P.sel.type === 'vert') && byId(M.rooms, P.sel.id);
+  if (!r || P.tool !== 'select') return [];
+  const out = [];
+  for (let i = 0; i < r.pts.length; i++) {
+    const [a, b] = roomEdge(r, i);
+    const q = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    if (dist(a, b) * P.z < 44 || hitOpen(q)) continue;   // ドア・窓と重なる所には出さない（ドアをつかめるように）
+    out.push({ room: r, edge: i, q });
+  }
+  return out;
+}
+const hitMid = p => selRoomMids().find(m => dist(p, m.q) < 12 / P.z) || null;
 const hitRoom = p => [...M.rooms].reverse().find(r => inPoly(p, r.pts)) || null;
 
 // ---------- 操作 ----------
@@ -165,9 +184,9 @@ function onDown(e) {
     const sn = snapPoint(p, P.trace[P.trace.length - 1], null, P.trace.length >= 3 ? [P.trace[0]] : []);
     P.pending = sn.p; P.guide = sn.guide;
     P.drag = { type: 'trace', touch };
-  } else if (P.tool === 'tape') {
-    if (P.tapeA) { P.tapeB = snapPoint(p, P.tapeA).p; P.drag = { type: 'tapeB', touch }; }
-    else { P.tapeA = snapPoint(p, null).p; P.tapeB = null; P.drag = { type: 'tapeA', touch, s: sp }; }
+  } else if (P.tool === 'tape' || P.tool === 'align') {
+    if (P.tapeA) { P.tapeB = tapeSnap(p, P.tapeA); P.drag = { type: 'tapeB', touch }; }
+    else { P.tapeA = tapeSnap(p, null); P.tapeB = null; P.drag = { type: 'tapeA', touch, s: sp }; }
   } else if (P.tool === 'open') {
     const o = hitOpen(p);
     if (o) { select({ type: 'open', id: o.id }); P.drag = { type: 'open', o, moved: false }; }
@@ -181,6 +200,14 @@ function onDown(e) {
       } else P.drag = { type: 'pan', s: sp, ox: P.ox, oy: P.oy, click: true };
     }
   } else {                             // 動かす
+    const mid = hitMid(p);
+    if (mid) {                         // 辺のまん中の「＋」: 角を足して、そのままドラッグ
+      commit();
+      const i = insertVertex(mid.room, mid.edge, mid.q);
+      P.sel = { type: 'vert', id: mid.room.id, i };
+      P.drag = { type: 'vert', refs: [[mid.room, i]], moved: true, touch };
+      P.onChange(); updateLoupe(sp); requestDraw(); return;
+    }
     const v = hitVertex(p), o = !v && hitOpen(p), t = !v && !o && hitTape(p);
     if (v) P.drag = { type: 'vert', refs: v, moved: false, touch };
     else if (o) { select({ type: 'open', id: o.id }); P.drag = { type: 'open', o, moved: false }; }
@@ -207,7 +234,7 @@ function onMove(e) {
     if (P.tool === 'trace' && e.pointerType === 'mouse') {
       const sn = snapPoint(p, P.trace[P.trace.length - 1], null, P.trace.length >= 3 ? [P.trace[0]] : []);
       P.hover = sn.p; P.guide = sn.guide; requestDraw();
-    } else if (P.tool === 'tape' && P.tapeA) { P.tapeB = snapPoint(p, P.tapeA).p; requestDraw(); }
+    } else if ((P.tool === 'tape' || P.tool === 'align') && P.tapeA) { P.tapeB = tapeSnap(p, P.tapeA); requestDraw(); }
     return;
   }
   if (d.type === 'pan') {
@@ -218,7 +245,7 @@ function onMove(e) {
     const sn = snapPoint(p, P.trace[P.trace.length - 1], null, P.trace.length >= 3 ? [P.trace[0]] : []);
     P.pending = sn.p; P.guide = sn.guide;
   } else if (d.type === 'tapeA' || d.type === 'tapeB') {
-    P.tapeB = snapPoint(p, P.tapeA).p;
+    P.tapeB = tapeSnap(p, P.tapeA);
   } else if (d.type === 'vert') {
     if (!d.moved) { commit(); d.moved = true; }
     // となりの角と水平・垂直にそろうのは、snapPoint の x・y そろえで
@@ -253,12 +280,15 @@ function onUp(e) {
   } else if (d.type === 'tapeA') {
     if (dist(sp, d.s) > 10 && P.tapeB) finishTape();          // ドラッグで2点
     // そうでなければ1点目だけ決まった。次のクリック・タップが2点目
+    P.onTraceChange();
   } else if (d.type === 'tapeB') {
     if (P.tapeB) finishTape();
   } else if (d.type === 'pan' && d.click) {
     const p = toU(...sp);
     if (d.pick) select(d.pick);
     else { const r = hitRoom(p); select(r ? { type: 'room', id: r.id } : null); }
+  } else if (d.type === 'vert' && !d.moved) {   // 角を押しただけ: えらぶ（消せるように）
+    const [r, i] = d.refs[0]; select({ type: 'vert', id: r.id, i });
   } else if (d.moved) P.onChange();
   requestDraw();
 }
@@ -274,8 +304,11 @@ function updateLoupe(sp) {
   P.loupe = d && d.touch && ['trace', 'tapeA', 'tapeB', 'vert', 'tapeEnd'].includes(d.type) ? sp : null;
 }
 
+// 壁の線で合わせるときは吸いつかせない（ななめの線をそのまま測る）
+const tapeSnap = (p, from) => P.tool === 'align' ? p.slice() : snapPoint(p, from).p;
 function finishTape() {
   if (!P.tapeA || !P.tapeB || dist(P.tapeA, P.tapeB) < 1e-6) { P.tapeA = P.tapeB = null; return; }
+  if (P.tool === 'align') { const a = P.tapeA, b = P.tapeB; P.tapeA = P.tapeB = null; P.onAlign(a, b); return; }
   commit();
   const t = { id: newId('t'), a: P.tapeA, b: P.tapeB, m: null };
   M.tapes.push(t); P.tapeA = P.tapeB = null;
@@ -292,6 +325,11 @@ function planCloseTrace() {
   return true;
 }
 function planUndoPoint() { if (P.trace.length) { P.trace.pop(); P.onTraceChange(); requestDraw(); return true; } return false; }
+// 線を水平か垂直（近いほう）にするのに回す角度（度）
+function alignDelta(a, b) {
+  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+  return Math.round(ang / 90) * 90 - ang;
+}
 function planCancel() { P.trace = []; P.pending = null; P.tapeA = P.tapeB = null; P.onTraceChange(); requestDraw(); }
 function planSetTool(t) { P.tool = t; if (t !== 'trace') P.trace = []; P.tapeA = P.tapeB = null; P.hover = null; P.onTraceChange(); requestDraw(); }
 
@@ -325,7 +363,10 @@ function planDraw() {
   // 下じき
   if (IMG && M.img) {
     g.globalAlpha = P.imgAlpha;
-    g.drawImage(IMG.el, P.ox, P.oy, M.img.w * P.z, M.img.h * P.z);
+    g.save();
+    g.translate(P.ox + M.img.w / 2 * P.z, P.oy + M.img.h / 2 * P.z); g.rotate((M.imgRot || 0) * Math.PI / 180);
+    g.drawImage(IMG.el, -M.img.w / 2 * P.z, -M.img.h / 2 * P.z, M.img.w * P.z, M.img.h * P.z);
+    g.restore();
     g.globalAlpha = 1;
   }
   // 部屋の床
@@ -362,6 +403,11 @@ function planDraw() {
   // 角（動かす道具のとき・えらんだ部屋）
   if (P.tool === 'select') {
     for (const r of M.rooms) for (const p of r.pts) { const q = toS(p); dot(g, q, 4.5, C.bg, C.acc); }
+    if (P.sel && P.sel.type === 'vert') { const r = byId(M.rooms, P.sel.id); if (r && r.pts[P.sel.i]) dot(g, toS(r.pts[P.sel.i]), 7, C.acc, C.bg); }
+    for (const m of selRoomMids()) {   // 角を足す「＋」
+      const q = toS(m.q); dot(g, q, 7, C.bg, C.acc);
+      g.strokeStyle = C.acc; g.lineWidth = 1.8; g.beginPath(); g.moveTo(q[0] - 3.5, q[1]); g.lineTo(q[0] + 3.5, q[1]); g.moveTo(q[0], q[1] - 3.5); g.lineTo(q[0], q[1] + 3.5); g.stroke();
+    }
   }
   // メジャー
   for (const t of M.tapes) {
@@ -370,7 +416,8 @@ function planDraw() {
   }
   if (P.tapeA) {
     const b = P.tapeB || P.tapeA;
-    drawTape(g, P.tapeA, b, P.tapeB ? fmtM(dist(P.tapeA, b) * s, est) : '', C.acc, C.bg, true);
+    const txt = !P.tapeB ? '' : P.tool === 'align' ? alignDelta(P.tapeA, b).toFixed(1) + '° 回します' : fmtM(dist(P.tapeA, b) * s, est);
+    drawTape(g, P.tapeA, b, txt, C.acc, C.bg, true);
   }
   // なぞっている途中
   const tip = P.pending || P.hover;

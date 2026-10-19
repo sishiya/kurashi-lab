@@ -9,16 +9,17 @@ window.addEventListener('error', e => window.__roomErr.push(String(e.message || 
 const JO_M2 = 1.62;          // 1帖の広さの下限（壁心面積 ÷ 帖数。不動産の表示に関する公正競争規約施行規則）
 const NO_IMG_UNIT = 0.01;    // 画像なしの方眼: 1u＝1cm
 
-// ふつうの値（目安。測った値がないときに使い、画面では「推定」と出す）
+// ふつうの値（測った値がないときに使い、画面では「推定」と出す）。出どころは index.html の「おもな出どころ」と同じ。
+// ドア・引き戸・玄関の w は「通れる幅（有効幅）」、窓の w・h は内のり。壁はこの幅で抜く（枠の厚みは入れない）。
 const DEF = {
-  ceil: 2.4,                 // 天井の高さ
-  wallT: 0.12,               // 壁の厚さ（壁の中心線の両側に半分ずつ）
+  ceil: 2.4,                 // 目安（法律の最低は 2.1m: 建築基準法施行令 第21条）
+  wallT: 0.12,               // 目安（壁の中心線の両側に半分ずつ）
   open: {
-    door:     { w: 0.80, h: 2.00, sill: 0 },
-    sliding:  { w: 1.60, h: 2.00, sill: 0 },
-    entrance: { w: 0.85, h: 2.00, sill: 0 },
-    window:   { w: 1.65, h: 1.10, sill: 0.90 },
-    tallwin:  { w: 1.65, h: 2.00, sill: 0 },
+    door:     { w: 0.75, h: 2.00, sill: 0 },     // 幅: 高齢者が居住する住宅の設計に係る指針（国交省告示1301号）の出入口の基本レベル 750mm 以上。高さは目安
+    sliding:  { w: 0.75, h: 2.00, sill: 0 },     // 同上（1枚の引き戸）
+    entrance: { w: 0.80, h: 2.00, sill: 0 },     // 幅: 同じ指針の推奨レベル 800mm 以上を目安に。高さは目安
+    window:   { w: 1.65, h: 1.10, sill: 0.90 },  // 幅・高さ: 日本サッシ協会の標準規格寸法（幅 1650 は関東間の例、高さ 1100 は基準寸法の1つ）。床からの高さは目安（上が 2.0m にそろう）
+    tallwin:  { w: 1.65, h: 2.00, sill: 0 },     // 高さ 2000: 同じ規格の基準寸法
   },
 };
 const OPEN_KINDS = { door: 'ドア', sliding: '引き戸', entrance: '玄関', window: '窓', tallwin: '掃き出し窓' };
@@ -28,7 +29,7 @@ let M = newModel();          // 模型（保存するのはこれ）
 let IMG = null;              // 下じきの画像 { el: HTMLImageElement, url: dataURL }（M.img に大きさ）
 
 function newModel() {
-  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, nextId: 1 };
+  return { v: 1, rooms: [], opens: [], tapes: [], ceil: null, wallT: null, floor: 1, north: 0, img: null, imgRot: 0, nextId: 1 };
 }
 const newId = p => p + (M.nextId++);
 const byId = (list, id) => list.find(o => o.id === id);
@@ -68,6 +69,48 @@ function nearestOnSeg(p, a, b) { // { t: 0..1, q: 点, d: 距離 }
   return { t, q, d: dist(p, q) };
 }
 function roomEdge(room, i) { return [room.pts[i], room.pts[(i + 1) % room.pts.length]]; }
+
+// ---------- 形を変える ----------
+// 下じきを回す（画像のまん中を軸に。なぞった角・メジャーもいっしょに回して、画像からずれないように）
+function imgCenter() {
+  if (M.img) return [M.img.w / 2, M.img.h / 2];
+  const pts = M.rooms.flatMap(r => r.pts);
+  if (!pts.length) return [0, 0];
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+}
+function rotatePlan(deg) {
+  if (!deg) return;
+  const c = imgCenter(), a = deg * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+  const rot = p => { const x = p[0] - c[0], y = p[1] - c[1]; return [c[0] + x * co - y * si, c[1] + x * si + y * co]; };
+  for (const r of M.rooms) r.pts = r.pts.map(rot);
+  for (const t of M.tapes) { t.a = rot(t.a); t.b = rot(t.b); }
+  let d = (M.imgRot || 0) + deg;
+  while (d > 180) d -= 360; while (d <= -180) d += 360;
+  M.imgRot = Math.round(d * 1000) / 1000;
+}
+// 角を足す・消すとき、その部屋のドア・窓は位置（図の上の点）を覚えておき、いちばん近い辺に付けなおす
+function keepOpens(room, fn) {
+  const ops = M.opens.filter(o => o.room === room.id).map(o => {
+    const [a, b] = roomEdge(room, Math.min(o.edge, room.pts.length - 1));
+    return { o, c: [a[0] + (b[0] - a[0]) * o.t, a[1] + (b[1] - a[1]) * o.t] };
+  });
+  fn();
+  for (const { o, c } of ops) {
+    let best = null;
+    for (let i = 0; i < room.pts.length; i++) {
+      const [a, b] = roomEdge(room, i), h = nearestOnSeg(c, a, b);
+      if (!best || h.d < best.d) best = { i, t: h.t, d: h.d };
+    }
+    o.edge = best.i; o.t = Math.max(0.02, Math.min(0.98, best.t));
+  }
+}
+function insertVertex(room, edge, p) { keepOpens(room, () => room.pts.splice(edge + 1, 0, p.slice())); return edge + 1; }
+function deleteVertex(room, i) {
+  if (room.pts.length <= 3) return false;
+  keepOpens(room, () => room.pts.splice(i, 1));
+  return true;
+}
 
 // ---------- 縮尺 ----------
 // メジャーの値があればそれ（測った値）。なければ帖から（推定）。どちらもなければ仮の値。
