@@ -142,7 +142,7 @@ function renderSel() {
     }, '角を消しました');
   } else if (s.type === 'room') {
     bar.innerHTML = `<span class="k">部屋</span>
-      <input type="text" id="sName" value="${esc(o.name)}" maxlength="20" aria-label="部屋の名前">
+      <input type="text" id="sName" value="${esc(o.name)}" maxlength="20" aria-label="部屋の名前" list="roomNames">
       <label><input type="number" id="sJo" value="${o.jo || ''}" min="0.5" max="100" step="0.1" inputmode="decimal" placeholder="—"> 帖</label>
       <span class="note">${scaleEst() ? '約' : ''}${roomAreaM2(o).toFixed(1)}㎡</span>
       <button id="sIn">中から見る</button><button id="sDel" class="danger" aria-label="この部屋を消す">消す</button>`;
@@ -304,7 +304,7 @@ function uiInit() {
   P.onSelect = () => renderSel();
   P.onTraceChange = () => { renderTrace(); renderGuide(); renderEmpty(); };
   P.onRoomClosed = r => {
-    toast(`「${r.name}」ができました。つづけて次の部屋をなぞれます`);
+    toast(`「${r.name}」ができました。下で名前と帖を入れられます。つづけて次の部屋もなぞれます`);
     if (U.guideOn && U.step === 1 && M.rooms.length === 1) renderGuide();
   };
   P.onAlign = (a, b) => {
@@ -364,6 +364,7 @@ function uiInit() {
     const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Shift') P.shift = true;
     if (typing) return;
+    if (e.key === ' ' && U.tab !== 'sun') { P.space = true; e.preventDefault(); return; }
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); $(e.shiftKey ? 'redo' : 'undo').click(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); $('redo').click(); return; }
@@ -373,6 +374,6 @@ function uiInit() {
     if (U.tab === '2d' && e.key === 'Enter' && P.tool === 'trace') planCloseTrace();
     if (U.tab === 'sun' && e.key === ' ') { e.preventDefault(); $('sPlay').click(); }
   });
-  document.addEventListener('keyup', e => { if (e.key === 'Shift') P.shift = false; });
+  document.addEventListener('keyup', e => { if (e.key === 'Shift') P.shift = false; if (e.key === ' ') P.space = false; });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { requestDraw(); viewTheme(); });
 }
