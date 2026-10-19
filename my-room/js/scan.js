@@ -199,7 +199,7 @@ async function scanApply(first) {
   M.scan = { ppm: im.ppm, X0: im.X0, Z0: im.Z0, floor: SCAN.floor, slice: SCAN.slice, name: SCAN.name };
   SCAN.ver++;
   planFit(); changed({ refit: true });
-  if (first) { if (U.guideOn) gotoStep(1); toast('スキャンの断面を下じきにしました（外には送っていません）'); }
+  if (first) { setTab('2d'); toast('スキャンを下じきにしました。右の「壁を自動で見つける」で部屋の形にできます'); }
 }
 async function scanLoad(file) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -253,7 +253,8 @@ function scanRender() {
   $('scanInfo').textContent = `${SCAN.name}・三角形 ${(SCAN.tri.length / 9).toLocaleString()}・大きさ ${e.d[0].toFixed(1)}×${e.d[2].toFixed(1)}m・高さ ${e.d[1].toFixed(1)}m`;
 }
 function scanInit() {
-  $('scanFile').onchange = e => { const f = e.target.files[0]; if (f) scanLoad(f); e.target.value = ''; };
+  const onScan = e => { const f = e.target.files[0]; if (f) scanLoad(f); e.target.value = ''; };
+  $('scanFile').onchange = onScan; $('scanFile2').onchange = onScan;
   $('scanUp').onchange = e => { SCAN.up = e.target.value; scanPrep(); scanApply(false); };
   $('scanUnit').onchange = e => { SCAN.unit = +e.target.value; scanPrep(); scanApply(false); };
   $('scanSlice').oninput = e => { $('scanSliceOut').textContent = e.target.value + ' cm'; };

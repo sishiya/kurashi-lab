@@ -11,8 +11,10 @@ const P = {
   sel: null,                   // { type: 'room'|'open'|'tape', id }
   drag: null, pointers: new Map(), pinch: null, loupe: null,
   imgAlpha: 0.55, shift: false, dirty: false,
+  straight: true,              // 線を水平・垂直にそろえる（タッチでは Shift が押せないので切りかえで）
+  userView: false,             // 自分で拡大・移動したか（していなければ、大きさが変わったら全体に合わせなおす）
   exts: [],                    // ほかのタブが足す道具と描画（wifi.js・move.js）
-  onChange: () => {}, onSelect: () => {}, onRoomClosed: () => {}, onTapeDone: () => {}, onTraceChange: () => {}, onAlign: () => {},
+  onChange: () => {}, onNorth: () => {}, onSelect: () => {}, onRoomClosed: () => {}, onTapeDone: () => {}, onTraceChange: () => {}, onAlign: () => {},
 };
 
 const fmtM = (m, est) => (est ? '約 ' : '') + m.toFixed(2) + ' m';
@@ -35,11 +37,12 @@ function planInit(cv) {
 function planResize() {
   const r = P.cv.getBoundingClientRect();
   if (r.width < 2 || r.height < 2) return;   // 隠れているとき
-  const first = !P.W;
+  const first = !P.W, dw = r.width - P.W, dh = r.height - P.H;
   P.dpr = Math.min(window.devicePixelRatio || 1, 2);
   P.W = r.width; P.H = r.height;
   P.cv.width = Math.round(P.W * P.dpr); P.cv.height = Math.round(P.H * P.dpr);
-  if (first) planFit();
+  if (first || !P.userView) planFit();       // 自分で動かしていなければ、いつも全体が見えるように
+  else { P.ox += dw / 2; P.oy += dh / 2; }   // 動かしていれば、まん中を保つ
   requestDraw();
 }
 function requestDraw() {
@@ -62,13 +65,17 @@ function planFit() {
   M.tapes.forEach(t => { add(t.a); add(t.b); });
   P.trace.forEach(add);
   if (M.img) imgCorners().forEach(add);
+  for (const x of P.exts) if (x.active() && x.fitPts) x.fitPts().forEach(add);   // タブが足したい所（搬入の玄関の外など）
   if (!isFinite(x0)) { const s = scaleInfo().s; x0 = 0; y0 = 0; x1 = 8 / s; y1 = 6 / s; }
-  const pad = 28, w = Math.max(x1 - x0, 1e-3), h = Math.max(y1 - y0, 1e-3);
-  P.z = Math.min((P.W - pad * 2) / w, (P.H - pad * 2) / h);
-  P.ox = (P.W - w * P.z) / 2 - x0 * P.z; P.oy = (P.H - h * P.z) / 2 - y0 * P.z;
+  // 上は状態の札・北の矢印、下は拡大ボタン・縮尺の棒にかからないよう、上下を広めにあける
+  const px = 28, pt = 44, pb = 56, w = Math.max(x1 - x0, 1e-3), h = Math.max(y1 - y0, 1e-3);
+  P.z = Math.min((P.W - px * 2) / w, (P.H - pt - pb) / h);
+  P.ox = (P.W - w * P.z) / 2 - x0 * P.z; P.oy = pt + (P.H - pt - pb - h * P.z) / 2 - y0 * P.z;
+  P.userView = false;
   requestDraw();
 }
 function planZoom(k, sx = P.W / 2, sy = P.H / 2) {
+  P.userView = true;
   const z = Math.max(1e-3, Math.min(P.z * k, 400));
   P.ox = sx - (sx - P.ox) * z / P.z; P.oy = sy - (sy - P.oy) * z / P.z; P.z = z;
   requestDraw();
@@ -86,7 +93,7 @@ function snapPoint(p, from, skip, extra = []) {
   let best = null, bd = R;
   for (const v of verts) { const d = dist(p, v); if (d < bd) { bd = d; best = v; } }
   if (best) return { p: best.slice(), guide: null, vertex: true };
-  if (P.shift) return { p: p.slice(), guide: null };
+  if (P.shift || !P.straight) return { p: p.slice(), guide: null };
   const q = p.slice(); let lockX = false, lockY = false;
   if (from) {
     const ang = Math.atan2(Math.abs(q[1] - from[1]), Math.abs(q[0] - from[0]));
@@ -175,11 +182,12 @@ function onDown(e) {
   if (P.pointers.size === 2) {         // 2本指: 拡大・移動（していた操作はやめる）
     P.pending = null; P.loupe = null; P.drag = null;
     const [a, b] = [...P.pointers.values()];
-    P.pinch = { d: dist(a, b), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], z: P.z, ox: P.ox, oy: P.oy };
+    P.pinch = { d: dist(a, b), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], z: P.z, ox: P.ox, oy: P.oy }; P.userView = true;
     requestDraw(); return;
   }
   if (P.pointers.size > 2) return;
   if (e.button === 1 || e.button === 2) { P.drag = { type: 'pan', s: sp, ox: P.ox, oy: P.oy }; return; }
+  if (dist(sp, [P.W - 30, 30]) < 26) { commit(); P.drag = { type: 'north' }; return; }   // 右上の北の矢印はドラッグで回せる
   const p = toU(...sp), touch = e.pointerType !== 'mouse';
   const ext = P.exts.find(x => x.active() && x.tools.includes(P.tool));
   if (ext) {                           // WiFi・搬入の道具（wifi.js・move.js）
@@ -246,10 +254,14 @@ function onMove(e) {
     } else if ((P.tool === 'tape' || P.tool === 'align') && P.tapeA) { P.tapeB = tapeSnap(p, P.tapeA); requestDraw(); }
     return;
   }
+  if (d.type === 'north') {           // 北の矢印を回す（矢印の先を指の向きに）
+    M.north = Math.round(Math.atan2(sp[0] - (P.W - 30), -(sp[1] - 30)) * 180 / Math.PI);
+    P.onNorth(); requestDraw(); return;
+  }
   if (d.type === 'pan') {
     if (d.click && dist(sp, d.s) < 5) return;
     d.click = false;
-    P.ox = d.ox + sp[0] - d.s[0]; P.oy = d.oy + sp[1] - d.s[1];
+    P.ox = d.ox + sp[0] - d.s[0]; P.oy = d.oy + sp[1] - d.s[1]; P.userView = true;
   } else if (d.type === 'trace') {
     const sn = snapPoint(p, P.trace[P.trace.length - 1], null, P.trace.length >= 3 ? [P.trace[0]] : []);
     P.pending = sn.p; P.guide = sn.guide;
@@ -281,6 +293,7 @@ function onUp(e) {
   const d = P.drag; P.drag = null; P.loupe = null; P.guide = null;
   if (!d) return;
   if (d.owner) { d.owner.up(d); requestDraw(); return; }
+  if (d.type === 'north') { P.onChange(); return; }
   if (d.type === 'trace' && P.pending) {
     const q = P.pending; P.pending = null;
     if (P.trace.length >= 3 && dist(q, P.trace[0]) < 1e-6) { planCloseTrace(); return; }
@@ -307,7 +320,7 @@ function onWheel(e) {
   e.preventDefault();
   const sp = evPos(e);
   if (e.ctrlKey || Math.abs(e.deltaY) >= Math.abs(e.deltaX)) planZoom(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), sp[0], sp[1]);
-  else { P.ox -= e.deltaX; requestDraw(); }
+  else { P.ox -= e.deltaX; P.userView = true; requestDraw(); }
 }
 function updateLoupe(sp) {
   const d = P.drag;
@@ -500,7 +513,8 @@ function drawTape(g, a, b, text, col, bg, bold) {
 function drawCompass(g, C) {     // 北の向き（間取り図の方位マークに合わせて回す）
   const x = P.W - 30, y = 30, r = 16, a = M.north * Math.PI / 180;
   g.save(); g.translate(x, y);
-  g.beginPath(); g.arc(0, 0, r + 4, 0, Math.PI * 2); g.fillStyle = C.bg; g.globalAlpha = 0.85; g.fill(); g.globalAlpha = 1;
+  g.beginPath(); g.arc(0, 0, r + 6, 0, Math.PI * 2); g.fillStyle = C.bg; g.globalAlpha = 0.9; g.fill(); g.globalAlpha = 1;
+  g.strokeStyle = C.muted; g.lineWidth = 1; g.setLineDash([2, 3]); g.stroke(); g.setLineDash([]);   // 点線の輪＝つかんで回せる
   g.rotate(a);
   g.beginPath(); g.moveTo(0, -r); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath();
   g.fillStyle = C.ink; g.fill();

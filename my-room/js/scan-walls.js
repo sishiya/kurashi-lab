@@ -265,7 +265,7 @@ function autoWallsApply() {
   if (!SCAN.tri || !M.scan) return;
   let r;
   try { r = autoWalls(); } catch (e) { toast(String(e.message || e)); return; }
-  if (M.rooms.length && !confirm('いまの部屋・ドア・窓を消して、スキャンから見つけた形にしますか？')) return;
+  const had = M.rooms.length > 0;   // たしかめのダイアログは出さず、知らせの「元に戻す」で戻せるように
   commit();
   M.rooms = []; M.opens = []; P.sel = null; P.trace = [];
   // 壁が縦横になるよう下じきを回す（回した座標 → スキャンの座標 → 画像 → 回した図）
@@ -287,6 +287,6 @@ function autoWallsApply() {
   M.ceil = r.ceil;
   planFit(); changed({ refit: true });
   const cnt = k => r.opens.filter(o => o.kind === k).length;
-  toast(`部屋 ${r.polys.length}・ドア ${cnt('door')}・窓 ${cnt('window')}・掃き出し窓 ${cnt('tallwin')} を見つけました`);
+  toast(`部屋 ${r.polys.length}・ドア ${cnt('door')}・窓 ${cnt('window')}・掃き出し窓 ${cnt('tallwin')} を見つけました`, had);
   $('autoNote').textContent = `見つけた形: 部屋 ${r.polys.length}つ・ドア ${cnt('door')}・窓 ${cnt('window')}・掃き出し窓 ${cnt('tallwin')}。天井の高さ ${Math.round(r.ceil * 100)}cm` + (r.T ? `・壁の厚さ ${Math.round(r.T * 100)}cm` : '') + '（スキャンから測った値）。部屋の名前と、ドア・窓の種類（玄関・引き戸など）を確かめてください。';
 }

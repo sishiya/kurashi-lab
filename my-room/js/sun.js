@@ -20,7 +20,7 @@ const PREFS = [
   ['宮崎県', '31:54:39', '131:25:26'], ['鹿児島県', '31:33:37', '130:33:29'], ['沖縄県', '26:12:44', '127:40:51'],
 ].map(([name, la, lo]) => { const d = s => { const [a, b, c] = s.split(':').map(Number); return a + b / 60 + c / 3600; }; return { name, lat: d(la), lon: d(lo) }; });
 const FLOOR_H = 2.9;          // 1階分の高さ（目安）。何階かから床の高さを出す
-const SN = { view: 'now', map: null, mapKey: '', daily: null, dailyKey: '', canvas: document.createElement('canvas'), canvasKey: '' };
+const SN = { view: 'now', anim: 0, map: null, mapKey: '', daily: null, dailyKey: '', canvas: document.createElement('canvas'), canvasKey: '' };
 const sunOn = () => U.tab === 'sun';
 
 // ---------- 太陽の位置（NOAA） ----------
@@ -207,28 +207,49 @@ function sunRender() {
   $('sDoyOut').textContent = dateName(S.doy); $('sMinOut').textContent = hm(S.min);
   document.querySelectorAll('[data-sview]').forEach(b => b.classList.toggle('on', b.dataset.sview === SN.view));
   $('sBldg').classList.toggle('on', P.tool === 'bldg');
-  let html = `<p class="sinfo">${sp.alt > 0 ? `太陽の高さ <b>${sp.alt.toFixed(0)}°</b>・方位 <b>${dirName(sp.az)}</b>（${sp.az.toFixed(0)}°）` : '太陽は地平線の下です'}` +
-    (rs ? `　日の出 ${hm(rs.rise)}・日の入り ${hm(rs.set)}` : '') + `<span class="why">（${esc(S.pref >= 0 ? PREFS[S.pref].name + '庁のあたり' : '緯度 ' + S.lat.toFixed(2) + '°')}・${dateName(S.doy)}・日本時間）</span></p>`;
-  if (!M.rooms.length) html += '<p class="wmsg">先に「図面」で部屋をなぞってください。</p>';
-  else if (!M.opens.some(o => isWindow(o.kind))) html += '<p class="wmsg">「図面」の「ドア・窓」で窓を置くと、日の入り方がわかります。</p>';
-  else if (SN.view === 'daily') {
-    const d = sunDaily();
-    html += '<p class="why">床の色が濃いほど、日が当たる時間が長い所です（6時間以上でいちばん濃い）。</p>';
-    if (d) html += '<ul class="wlist">' + M.rooms.map((r, i) => `<li><b>${esc(r.name)}</b> 床のどこかに日が当たる ${minTxt(d.roomAny[i])}<span class="why">床の広さでならすと ${minTxt(d.roomAvg[i])}</span></li>`).join('') + '</ul>';
-  } else {
-    const m = sunMap(), lit = m ? m.reduce((n, v) => n + v, 0) * 0.05 * 0.05 : 0;
-    html += `<p class="wmsg">${sp.alt <= 0 ? '' : lit > 0 ? `床に日が当たっている広さ: 約 ${lit.toFixed(1)}㎡（黄色）` : 'いま、床に日は当たっていません。'}</p>`;
-  }
-  if (Math.abs(M.north || 0) < 0.01) html += '<p class="why">北の向きが 0°（図の上が北）のままです。間取り図の方位マークに合わせると正しくなります（「家ぜんたい」の「北の向き」）。</p>';
+  $('sPlay').classList.toggle('on', !!SN.anim);
+  $('sPlay').innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${SN.anim ? 'M6 4h4v16H6zM14 4h4v16h-4z' : 'M7 4v16l13-8z'}"/></svg>`;
+  // 図の下: 太陽のひとこと
+  let html = `<p class="sinfo">${sp.alt > 0 ? `☀ 高さ <b>${sp.alt.toFixed(0)}°</b>・<b>${dirName(sp.az)}</b>` : '太陽は沈んでいます'}` + (rs ? `<span class="why">日の出 ${hm(rs.rise)}・日の入り ${hm(rs.set)}</span>` : '');
+  if (!M.opens.some(o => isWindow(o.kind))) html += '<span class="why">「図面」で窓を置くと、日の入り方がわかります</span>';
+  else if (SN.view === 'now' && sp.alt > 0) { const m = sunMap(), lit = m ? m.reduce((n, v) => n + v, 0) * 0.05 * 0.05 : 0; html += `<span class="why">${lit > 0 ? `床に日 約 ${lit.toFixed(1)}㎡` : '床に日は当たっていません'}</span>`; }
+  else if (SN.view === 'daily') html += '<span class="why">色が濃いほど長く日が当たる（6時間以上でいちばん濃い）</span>';
+  html += '</p>';
+  if (Math.abs(M.north || 0) < 0.01) html += '<p class="why warn">北の向きが 0°（図の上が北）のままです。図の右上の矢印をドラッグして、間取り図の方位マークに合わせてください。</p>';
   $('sBody').innerHTML = html;
+  // 右の欄: 部屋ごとの1日の日あたり
+  const d = M.opens.some(o => isWindow(o.kind)) && !SN.anim ? sunDaily() : null;
+  $('sList').innerHTML = d ? `<p class="hint small">${dateName(S.doy)}・${esc(S.pref >= 0 ? PREFS[S.pref].name + '庁のあたり' : '緯度 ' + S.lat.toFixed(2) + '°')}</p><ul class="wlist">` + M.rooms.map((r, i) => `<li><b>${esc(r.name)}</b> 床のどこかに日が当たる ${minTxt(d.roomAny[i])}<span class="why">床の広さでならすと ${minTxt(d.roomAvg[i])}</span></li>`).join('') + '</ul>'
+    : SN.anim ? '<p class="hint small">再生中…</p>' : '<p class="hint small">窓を置くと、部屋ごとの日あたりの時間が出ます。</p>';
 }
-function sunHint() { return P.tool === 'bldg' ? '家の外でドラッグすると、まわりの建物（四角）を置けます。押してえらぶと高さを変えられます。' : '日付と時刻のつまみで、日の入り方が変わります。図の右上の矢印が北です。'; }
+// 1日を再生（日の出から日の入りまで 12 秒）。3D でも 2D でも
+function sunPlay(on) {
+  if (!on) { if (SN.anim) { cancelAnimationFrame(SN.anim); SN.anim = 0; sunRender(); } return; }
+  const rs = riseSet(M.sun.doy), a = rs ? Math.max(240, Math.floor(rs.rise / 5) * 5) : 300, b = rs ? Math.min(1200, Math.ceil(rs.set / 5) * 5) : 1140;
+  if (M.sun.min >= b - 5 || M.sun.min < a) M.sun.min = a;
+  if (SN.view === 'daily') SN.view = 'now';
+  let last = performance.now();
+  const tick = now => {
+    M.sun.min = Math.min(b, M.sun.min + (now - last) / 12000 * (b - a)); last = now;
+    $('sMin').value = M.sun.min; $('sMinOut').textContent = hm(M.sun.min);
+    sunLive();
+    SN.anim = M.sun.min < b ? requestAnimationFrame(tick) : 0;
+    if (!SN.anim) { M.sun.min = Math.round(M.sun.min / 5) * 5; changed(); }
+  };
+  SN.anim = requestAnimationFrame(tick); sunRender();
+}
+function sunStop() { sunPlay(false); }
+function sunLive() {   // 時刻・日付だけ変わったとき（再生中・つまみを動かしている間）: 2D は描きなおし、3D は光を動かす
+  if (SN.view === '3d') { placeSun(); viewRender(); } else requestDraw();
+  sunRender();
+}
+function sunHint() { return P.tool === 'bldg' ? '家の外でドラッグすると、まわりの建物（四角）を置けます。押してえらぶと高さを変えられます。' : ''; }
 function sunSel(bar, s) {
   if (s.type !== 'bldg') return false;
   const b = byId(M.sun.bldgs, s.id); if (!b) return false;
   bar.innerHTML = `<span class="k">まわりの建物</span><label>高さ <input type="number" id="sBH" value="${b.h}" min="1" max="300" step="0.5" inputmode="decimal"> m</label><span class="note">地面からの高さ（目安で）</span><button id="sDel" class="danger">消す</button>`;
   $('sBH').onchange = e => edit(() => { const v = parseFloat(e.target.value); if (v > 0) b.h = v; });
-  $('sDel').onclick = () => edit(() => { M.sun.bldgs = M.sun.bldgs.filter(x => x !== b); P.sel = null; });
+  $('sDel').onclick = () => edit(() => { M.sun.bldgs = M.sun.bldgs.filter(x => x !== b); P.sel = null; }, '建物を消しました');
   return true;
 }
 // 3D の光を本物の太陽に（日差しのタブを使ったあと。沈んでいれば null）
@@ -294,15 +315,16 @@ function sunInit() {
   $('sLat').onchange = e => edit(() => { const v = parseFloat(e.target.value); if (v >= -66 && v <= 66) M.sun.lat = v; });
   $('sLon').onchange = e => edit(() => { const v = parseFloat(e.target.value); if (v >= -180 && v <= 180) M.sun.lon = v; });
   const live = (id, k) => {                     // つまみを動かしている間は「この時刻」だけ描きなおす（1日の地図は、はなしてから）
-    $(id).oninput = e => { M.sun[k] = +e.target.value; $('sDoyOut').textContent = dateName(M.sun.doy); $('sMinOut').textContent = hm(M.sun.min); if (SN.view === 'now') { sunRender(); requestDraw(); } };
+    $(id).oninput = e => { sunPlay(false); M.sun[k] = +e.target.value; $('sDoyOut').textContent = dateName(M.sun.doy); $('sMinOut').textContent = hm(M.sun.min); if (SN.view !== 'daily') sunLive(); };
     $(id).onchange = () => changed();
   };
   live('sDoy', 'doy'); live('sMin', 'min');
   document.querySelectorAll('[data-season]').forEach(b => b.onclick = () => {
     const [m, d] = b.dataset.season.split('-').map(Number), t = new Date();
-    M.sun.doy = m ? doyOf(m, d) : doyOf(t.getMonth() + 1, t.getDate()); changed();
+    sunPlay(false); M.sun.doy = m ? doyOf(m, d) : doyOf(t.getMonth() + 1, t.getDate()); changed();
   });
-  document.querySelectorAll('[data-sview]').forEach(b => b.onclick = () => { SN.view = b.dataset.sview; sunRender(); requestDraw(); });
+  document.querySelectorAll('[data-sview]').forEach(b => b.onclick = () => { SN.view = b.dataset.sview; setTab('sun'); if (SN.view === '3d') { viewBuild(true); } });
+  $('sPlay').onclick = () => sunPlay(!SN.anim);
   $('sBldg').onclick = () => { setTool(P.tool === 'bldg' ? 'sunview' : 'bldg'); sunRender(); };
   $('sEave').onchange = e => edit(() => { const v = parseFloat(e.target.value); M.sun.eave = isFinite(v) && v > 0 ? v / 100 : 0; });
 }
