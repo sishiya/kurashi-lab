@@ -7,7 +7,7 @@
 
 | フォルダ | ツール |
 |---|---|
-| （まだありません） | |
+| `my-room/` | わが家の模型（作っている途中。入口にはまだ載せていません）: 間取りの画像をなぞって部屋の模型を作り、3D で見る |
 
 - **公開中**: https://sishiya.github.io/kurashi-lab/ （GitHub Pages）
 
@@ -24,3 +24,4 @@ git config core.quotepath false
 
 - プログラムの仕組み: MIT（`LICENSE`）
 - ツールの中身（名前・文章・デザイン・画像・文書）: CC BY-NC 4.0（`LICENSE-CONTENT`）
+- 読みこむライブラリ（`lib/`）: three.js r128（MIT、`lib/three@0.128.0/LICENSE`）— わが家の模型の 3D
