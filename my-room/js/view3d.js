@@ -21,7 +21,7 @@ function viewInit(el) {
   V.scene = new THREE.Scene();
   V.cam = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
   V.target = new THREE.Vector3();
-  V.scene.add(new THREE.HemisphereLight(0xffffff, lin(0xb9a88f), 0.62));
+  V.hemi = new THREE.HemisphereLight(0xffffff, lin(0xb9a88f), 0.62); V.scene.add(V.hemi);
   V.sun = new THREE.DirectionalLight(0xffffff, 0.75);    // ※ 見やすさのための光（本物の太陽の向きではない）
   V.sun.castShadow = true; V.sun.shadow.mapSize.set(2048, 2048); V.sun.shadow.bias = -0.0004; V.sun.shadow.radius = 3;
   V.scene.add(V.sun, V.sun.target);
@@ -53,6 +53,7 @@ function viewResize() {
   V.cam.aspect = r.width / r.height; V.cam.updateProjectionMatrix();
   viewRender();
 }
+function viewNow() { if (!V.ok) return; placeCam(); V.R.render(V.scene, V.cam); }   // すぐ描く（タブを切りかえた直後など）
 function viewRender() {
   if (!V.ok || V.dirty) return;
   V.dirty = true;
@@ -114,6 +115,20 @@ function viewBuild(refit) {
       V.group.add(cap);
     }
   }
+  if (typeof SN !== 'undefined' && U.tab === 'sun' && SN.view === '3d') {   // 日差しの 3D: 見えない「天井まである壁」と天井で影を作る（窓からだけ日が入る）
+    MAT.shadowOnly = MAT.shadowOnly || new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+    for (const pc of W.pieces) {
+      const dx = pc.b[0] - pc.a[0], dz = pc.b[1] - pc.a[1], L = Math.hypot(dx, dz); if (L < 0.005 || pc.z1 - pc.z0 < 0.005) continue;
+      const ext = pc.z0 === 0 && pc.z1 >= H && !pc.lintel ? T / 2 : 0;
+      const sb = new THREE.Mesh(new THREE.BoxGeometry(L + ext * 2, pc.z1 - pc.z0, T), MAT.shadowOnly);
+      sb.position.set((pc.a[0] + pc.b[0]) / 2, (pc.z0 + pc.z1) / 2, (pc.a[1] + pc.b[1]) / 2); sb.rotation.y = -Math.atan2(dz, dx); sb.castShadow = true;
+      V.group.add(sb);
+    }
+    for (const r of M.rooms) {
+      const cg = new THREE.ShapeGeometry(new THREE.Shape(r.pts.map(p => new THREE.Vector2(p[0] * s, p[1] * s)))); cg.rotateX(Math.PI / 2);
+      const ce = new THREE.Mesh(cg, MAT.shadowOnly); ce.position.y = H; ce.castShadow = true; V.group.add(ce);
+    }
+  }
   for (const ln of W.lines) for (const op of ln.opens) {   // 窓ガラス
     if (!isWindow(op.kind)) continue;
     const a = W.at(ln, op.a), b = W.at(ln, op.b), L = op.b - op.a, top = Math.min(op.head, cutH);
@@ -162,8 +177,11 @@ function viewFit() {
 function placeSun() {
   const b = bbox(), R = Math.max(b.x1 - b.x0, b.z1 - b.z0, 2), L = R * 1.2, c = [(b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2];
   const sv = typeof sun3dDir === 'function' ? sun3dDir() : null;
-  if (sv) { V.sun.position.set(c[0] + sv[0] * L * 2, sv[1] * L * 2, c[1] + sv[2] * L * 2); V.sun.intensity = 1.0; }
-  else { V.sun.position.set(c[0] - L * 0.6, L * 1.4, c[1] - L * 0.4); V.sun.intensity = 0.75; }
+  const sunView = typeof SN !== 'undefined' && U.tab === 'sun' && SN.view === '3d';
+  if (sv) { V.sun.position.set(c[0] + sv[0] * L * 2, sv[1] * L * 2, c[1] + sv[2] * L * 2); V.sun.intensity = sunView ? 1.35 : 1.0; V.sun.visible = true; }
+  else if (sunView) V.sun.visible = false;   // 日差しの 3D で太陽が沈んでいるときは、日の光なし
+  else { V.sun.position.set(c[0] - L * 0.6, L * 1.4, c[1] - L * 0.4); V.sun.intensity = 0.75; V.sun.visible = true; }
+  V.hemi.intensity = sunView ? 0.42 : 0.62;   // 日差しの 3D は、日の当たる所がくっきり見えるようにまわりの光をおさえる
   V.sun.target.position.set(c[0], 0, c[1]);
   const sc = V.sun.shadow.camera; sc.left = sc.bottom = -R; sc.right = sc.top = R; sc.near = 0.5; sc.far = L * 5; sc.updateProjectionMatrix();
 }
@@ -206,8 +224,9 @@ function vMove(e) {
   if (d.pan && V.mode !== 'inside') { V.target.copy(d.t); panBy(dx, dy); }
   else {
     const k = V.mode === 'inside' ? -1 : 1;
-    V.yaw = d.yaw - dx / h * 3 * k;
-    V.pitch = Math.max(V.mode === 'inside' ? -1.2 : 0.08, Math.min(V.mode === 'inside' ? 1.2 : Math.PI / 2 - 1e-3, d.pitch + dy / h * 2.5 * k));
+    const ix = U.prefs.invX ? -1 : 1, iy = U.prefs.invY ? -1 : 1;   // 回す向きの逆転（3D の約束）
+    V.yaw = d.yaw - dx / h * 3 * k * ix;
+    V.pitch = Math.max(V.mode === 'inside' ? -1.2 : 0.08, Math.min(V.mode === 'inside' ? 1.2 : Math.PI / 2 - 1e-3, d.pitch + dy / h * 2.5 * k * iy));
   }
   viewRender();
 }

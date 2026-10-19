@@ -7,9 +7,9 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f855a'/><g fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'><path d='M14 50V24h36v26zM14 36h14M36 24v12h14'/></g><rect x='28' y='34' width='8' height='3.5' fill='%232f855a'/></svg>">
 <script>/* アクセス解析 Google Analytics 4（まなびラボ・あそびラボと同じ ID。GitHub Pages で開いたときだけ。content_group で見分ける） */(function(){if(location.hostname!=='sishiya.github.io')return;var id='G-E2VPYKV2Y9',s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.appendChild(s);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false,content_group:'kurashi-lab'});})();</script>
 <meta name="description" content="間取りの画像をなぞって、自分の部屋の模型を作ります。帖やメジャーの値で縮尺を決め、ドアや窓を置いて 3D で見られます。画像も寸法も外には送りません。">
-<link rel="stylesheet" href="css/style.css?v=8">
+<link rel="stylesheet" href="css/style.css?v=13">
 </head>
-<body>
+<body data-tab="2d">
 <header class="top">
   <a class="home" href="../" title="くらしラボの入口へ"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#2f855a"/><g fill="none" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"><rect x="11" y="25" width="42" height="25" rx="3"/><path d="M24 25v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5M11 36h42"/></g><rect x="28" y="32" width="8" height="8" rx="1.5" fill="#fff"/></svg></a>
   <h1>わが家の模型</h1>
@@ -18,55 +18,73 @@
 
 <div class="layout">
 <div class="stage" id="stage">
+  <!-- 上の帯: タブ（いまの作業）と、どのタブでも同じ場所の「元に戻す・やり直す」 -->
   <div class="tabs" role="tablist">
     <button class="tab on" id="tab2d" role="tab" aria-selected="true">図面</button>
     <button class="tab" id="tab3d" role="tab" aria-selected="false">3D</button>
     <button class="tab" id="tabWifi" role="tab" aria-selected="false">WiFi</button>
     <button class="tab" id="tabMove" role="tab" aria-selected="false">搬入</button>
     <button class="tab" id="tabSun" role="tab" aria-selected="false">日差し</button>
-    <span class="v3opts" id="v3opts" hidden>
-      <button class="chip on" data-mode="tilt">ななめ</button><button class="chip" data-mode="top">上から</button><button class="chip" data-mode="inside">部屋の中</button>
-      <label class="chk"><input type="checkbox" id="cut" checked>壁を低く</label>
-      <label class="chk" hidden><input type="checkbox" id="scan3d" checked>スキャンを重ねる</label>
-    </span>
+    <span class="hist"><button id="undo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button id="redo" aria-label="やり直す" title="やり直す（Ctrl+Y）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button></span>
   </div>
+
+  <!-- まん中: 図・3D（ふさがない）。中は小さな印だけ -->
   <div class="view" id="view">
     <canvas id="plan" aria-label="上から見た図。部屋の角をなぞって模型を作ります"></canvas>
     <div id="v3" hidden></div>
+    <div class="vchip" id="vchip" hidden></div>
+    <div class="empty" id="empty" hidden>
+      <p class="eTitle">まず、家の形を入れます</p>
+      <div class="eBtns">
+        <label class="btn pri big"><input type="file" id="imgFile" accept="image/*" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.6"/></svg><span>間取りの画像</span></label>
+        <label class="btn big"><input type="file" id="scanFile" accept=".obj,.glb,.gltf,.ply,.usdz" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z M4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>3D スキャン</span></label>
+        <button class="big" id="sample"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v16H3zM12 4v9M3 13h18M16 13v7"/></svg><span>見本で試す</span></button>
+        <button class="big" id="gridStart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/></svg><span>方眼に描く</span></button>
+      </div>
+      <p class="eNote">画像やスキャンは、ここに落としても読みこめます。どれも外には送りません。</p>
+    </div>
     <div class="zoom" id="zoom">
       <button id="zIn" aria-label="大きく">＋</button><button id="zOut" aria-label="小さく">－</button><button id="zFit" aria-label="全体を表示">全体</button>
     </div>
-    <div class="drop" id="drop" hidden>ここに画像を放すと下じきになります</div>
+    <div class="drop" id="drop" hidden>ここに放すと読みこみます</div>
   </div>
+
+  <!-- 図のすぐ下: そのタブの道具（1行） -->
   <div class="tools" id="tools">
     <div class="seg" role="group" aria-label="道具">
       <button data-tool="trace" class="on">なぞる</button><button data-tool="select">動かす</button><button data-tool="open">ドア・窓</button><button data-tool="tape">メジャー</button>
     </div>
     <select id="openKind" aria-label="置くものの種類" hidden></select>
+    <button class="chip on" id="straight" title="線を水平・垂直にそろえる（Shift を押している間ははずれます）">まっすぐ</button>
     <span class="traceBtns" id="traceBtns" hidden><button id="tBack">1点もどす</button><button id="tClose" class="pri">部屋にする</button></span>
-    <span class="hist"><button id="undo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）">↶</button><button id="redo" aria-label="やり直す" title="やり直す（Ctrl+Y）">↷</button></span>
+  </div>
+  <div class="tools" id="v3opts" hidden>
+    <div class="seg" role="group" aria-label="見方"><button data-mode="tilt" class="on">ななめ</button><button data-mode="top">上から</button><button data-mode="inside">部屋の中</button></div>
+    <label class="chk"><input type="checkbox" id="cut" checked>壁を低く</label>
   </div>
   <div class="tools" id="wtools" hidden>
     <div class="seg" role="group" aria-label="WiFi の道具">
-      <button data-tool="router">ルーター</button><button data-tool="ext">中継機</button><button data-tool="spot">使う場所</button><button data-tool="item">もの</button><button data-tool="wall">壁</button>
+      <button data-tool="router">ルーター</button><button data-tool="spot">使う場所</button><button data-tool="ext">中継機</button><button data-tool="item">もの</button><button data-tool="wall">壁</button>
     </div>
     <select id="itemKind" aria-label="置くものの種類" hidden></select>
     <span class="seg sm" role="group" aria-label="周波数"><button data-freq="2.4">2.4GHz</button><button data-freq="5">5GHz</button></span>
-    <select id="wHouse" aria-label="家の種類"><option value="rc">マンション</option><option value="wood">木造の一戸建て</option></select>
   </div>
   <div class="tools" id="mtools" hidden>
     <select id="fPreset" aria-label="家具"></select>
     <span class="dims"><label>幅<input type="number" id="fW" min="5" max="600" inputmode="decimal"></label><label>奥<input type="number" id="fD" min="5" max="600" inputmode="decimal"></label><label>高<input type="number" id="fH" min="5" max="400" inputmode="decimal"></label><span class="u">cm</span></span>
-    <select id="fTarget" aria-label="運ぶ先"></select>
+    <button id="mRun" class="pri">調べる</button>
   </div>
   <div class="tools" id="stools" hidden>
-    <select id="sPref" aria-label="場所（都道府県）"></select>
-    <span id="sLatLon" class="dims" hidden><label>緯度<input type="number" id="sLat" step="0.001" inputmode="decimal"></label><label>経度<input type="number" id="sLon" step="0.001" inputmode="decimal"></label></span>
-    <label class="range srange"><output id="sDoyOut"></output><input type="range" id="sDoy" min="1" max="365" step="1" aria-label="日付"></label>
+    <button id="sPlay" class="play" aria-label="1日を再生"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg></button>
     <label class="range srange"><output id="sMinOut"></output><input type="range" id="sMin" min="240" max="1200" step="5" aria-label="時刻"></label>
+    <label class="range srange"><output id="sDoyOut"></output><input type="range" id="sDoy" min="1" max="365" step="1" aria-label="日付"></label>
   </div>
+
+  <!-- えらんだものの編集（1行） -->
   <div class="selbar" id="selbar" hidden></div>
-  <div class="wifibar" id="wifiBar" hidden>
+
+  <!-- そのタブの、いまの結果のひとこと -->
+  <div class="status" id="wifiBar" hidden>
     <div class="wtop">
       <span class="seg sm" role="group" aria-label="地図"><button data-wview="signal">電波の強さ</button><button data-wview="good">置き場所の良さ</button></span>
       <button id="wFind" class="pri">いちばん良い置き場所を探す</button>
@@ -74,22 +92,16 @@
     </div>
     <div id="wBody"></div>
   </div>
-  <div class="wifibar" id="sunBar" hidden>
+  <div class="status" id="moveBar" hidden><div id="mBody"></div></div>
+  <div class="status" id="sunBar" hidden>
     <div class="wtop">
-      <span class="seg sm" role="group" aria-label="地図"><button data-sview="now">この時刻</button><button data-sview="daily">1日の日あたり</button></span>
-      <span class="seasons"><button class="chip" data-season="12-22">冬至</button><button class="chip" data-season="3-20">春分</button><button class="chip" data-season="6-21">夏至</button><button class="chip" data-season="9-23">秋分</button><button class="chip" data-season="0-0">今日</button></span>
-      <button id="sBldg" class="chip">建物を置く</button>
-      <label class="range">ひさし・バルコニーの出 <input type="number" id="sEave" min="0" max="300" step="5" inputmode="numeric"> cm</label>
+      <span class="seg sm" role="group" aria-label="見方"><button data-sview="now">この時刻</button><button data-sview="daily">1日の日あたり</button><button data-sview="3d">3D</button></span>
+      <span class="seasons"><button class="chip" data-season="12-22">冬至</button><button class="chip" data-season="3-20">春分</button><button class="chip" data-season="6-21">夏至</button><button class="chip" data-season="0-0">今日</button></span>
     </div>
     <div id="sBody"></div>
   </div>
-  <div class="wifibar" id="moveBar" hidden>
-    <div class="wtop">
-      <button id="mRun" class="pri">調べる</button>
-      <label class="range">ぎりぎりの境目 <input type="number" id="fMargin" min="0" max="50" step="1" inputmode="numeric"> cm</label>
-    </div>
-    <div id="mBody"></div>
-  </div>
+
+  <!-- いまやることの一言 -->
   <div class="guide" id="guide">
     <span class="step" id="gStep"></span>
     <span class="gText" id="gText"></span>
@@ -98,49 +110,45 @@
 </div>
 
 <main class="panel">
-  <section>
-    <h2>間取りの画像</h2>
-    <p class="hint">物件の間取り図などを下じきにして、上からなぞります。画像はこの端末の中だけで使い、どこにも送りません（読みこむときに書きなおすので、撮影の場所などの情報も残りません）。</p>
+  <!-- 図面 -->
+  <section data-tabs="2d">
+    <h2>下じき</h2>
+    <p class="state" id="imgState"></p>
     <div class="row">
-      <label class="btn pri"><input type="file" id="imgFile" accept="image/*" hidden>画像をえらぶ</label>
-      <button id="sample">見本の間取りで試す</button>
-      <label class="btn"><input type="file" id="scanFile" accept=".obj,.glb,.gltf,.ply,.usdz" hidden>3D スキャンを読みこむ</label>
+      <label class="btn"><input type="file" id="imgFile2" accept="image/*" hidden>画像を入れかえる</label>
+      <label class="btn"><input type="file" id="scanFile2" accept=".obj,.glb,.gltf,.ply,.usdz" hidden>3D スキャン</label>
+      <button id="imgDel" hidden>画像を外す</button>
     </div>
-    <div id="scanRow" hidden>
-      <p class="hint small">3D スキャンを、床から下の高さで切った断面（黒い線）と、それより下にあるもの（うすい灰色）で、下じきにしました。縮尺はスキャンの寸法で決まります（<b class="meas">測った値</b>）。壁の線のまん中をなぞってください。</p>
-      <div class="row">
-        <label class="range">切る高さ（床から） <input type="range" id="scanSlice" min="20" max="220" step="5"> <output id="scanSliceOut"></output></label>
-      </div>
-      <div class="row">
-        <label class="range">上の向き <select id="scanUp"><option value="y">Y が上</option><option value="z">Z が上</option></select></label>
-        <label class="range">単位 <select id="scanUnit"><option value="1">m</option><option value="0.01">cm</option><option value="0.001">mm</option></select></label>
-      </div>
-      <div class="row"><button id="autoWalls" class="pri">壁を自動で見つける</button></div>
-      <p class="hint small" id="autoNote">スキャンの床と天井近くの断面から部屋を分け、壁の中心線をなぞった形にします。ドア・窓・掃き出し窓も、壁の開いた所から幅と高さを測って置きます。</p>
-      <p class="hint small" id="scanInfo"></p>
-      <p class="hint small">壁が横に見えるときは「上の向き」、大きさがおかしいときは「単位」を変えてください（なぞったあとに変えると、なぞった角とずれます）。スキャンの形そのものは保存しません。</p>
-    </div>
-    <p class="hint small">貼りつけ（Ctrl+V）や、図の上へのドロップでも読みこめます。</p>
     <div class="row" id="imgRow" hidden>
-      <label class="range">下じきの濃さ <input type="range" id="imgAlpha" min="0.1" max="1" step="0.05" value="0.55"></label>
-      <button id="imgDel">画像を外す</button>
+      <label class="range">濃さ <input type="range" id="imgAlpha" min="0.1" max="1" step="0.05" value="0.55"></label>
     </div>
     <div id="rotRow" hidden>
-      <p class="hint small">間取り図がかたむいているときは回して、壁を水平・垂直にそろえます（なぞった角もいっしょに回ります）。</p>
-      <div class="row">
-        <button id="rotAlign" class="pri">壁の線で合わせる</button><button id="rotL">左に90°</button><button id="rotR">右に90°</button>
-      </div>
+      <p class="hint small">かたむいた間取り図は、壁がまっすぐになるように回します（なぞった角もいっしょに回ります）。</p>
+      <div class="row"><button id="rotAlign" class="pri">壁の線で合わせる</button><button id="rotL" aria-label="左に90°回す">↺ 90°</button><button id="rotR" aria-label="右に90°回す">↻ 90°</button></div>
       <label class="range">細かく <input type="range" id="imgRot" min="-180" max="180" step="0.1"> <output id="rotOut"></output></label>
+    </div>
+    <div id="scanRow" hidden>
+      <div class="row"><button id="autoWalls" class="pri">壁を自動で見つける</button></div>
+      <p class="hint small" id="autoNote">スキャンの床と天井近くの断面から、部屋・ドア・窓を見つけます。</p>
+      <details class="more"><summary>スキャンの読み方を変える</summary>
+        <div class="row"><label class="range">切る高さ（床から） <input type="range" id="scanSlice" min="20" max="220" step="5"> <output id="scanSliceOut"></output></label></div>
+        <div class="row">
+          <label class="range">上の向き <select id="scanUp"><option value="y">Y が上</option><option value="z">Z が上</option></select></label>
+          <label class="range">単位 <select id="scanUnit"><option value="1">m</option><option value="0.01">cm</option><option value="0.001">mm</option></select></label>
+        </div>
+        <p class="hint small">壁が横に見えるときは「上の向き」、大きさがおかしいときは「単位」を。なぞったあとに変えると、なぞった角とずれます。</p>
+        <p class="hint small" id="scanInfo"></p>
+      </details>
     </div>
   </section>
 
-  <section>
+  <section data-tabs="2d">
     <h2>縮尺</h2>
     <p id="scaleState" class="state"></p>
-    <p class="hint">部屋をえらんで「帖」を入れると、広告のルール（1帖＝1.62㎡ 以上）から縮尺を<b class="est">推定</b>します。メジャーで1か所でも長さを入れると、そちらを優先します（<b class="meas">測った値</b>）。</p>
+    <p class="hint small">部屋をえらんで「帖」を入れると<b class="est">推定</b>、「メジャー」で1か所測ると<b class="meas">測った値</b>になります。</p>
   </section>
 
-  <section>
+  <section data-tabs="2d 3d sun">
     <h2>家ぜんたい</h2>
     <div class="grid2">
       <label>天井の高さ <span class="unit"><input type="number" id="ceil" min="150" max="600" step="1" inputmode="decimal"> cm</span></label>
@@ -148,15 +156,68 @@
       <label>何階 <span class="unit"><input type="number" id="floor" min="1" max="80" step="1" inputmode="numeric"> 階</span></label>
       <label>北の向き <span class="unit"><input type="range" id="north" min="-180" max="180" step="1"> <output id="northOut"></output></span></label>
     </div>
-    <p class="hint small">空らんは<b class="est">推定</b>（ふつうの値）を使います。北の向きは、間取り図の方位マークに図の右上の矢印を合わせてください（日差しの計算で使う予定）。</p>
+    <p class="hint small">空らんは<b class="est">推定</b>（ふつうの値）。北の向きは、図の右上の矢印をドラッグして、間取り図の方位マークに合わせることもできます。</p>
   </section>
 
-  <section>
-    <h2>寸法の表</h2>
-    <div class="tablewrap"><table id="dimTable"></table></div>
+  <section data-tabs="2d">
+    <details class="more"><summary>寸法の表</summary>
+      <div class="tablewrap"><table id="dimTable"></table></div>
+    </details>
   </section>
 
-  <section>
+  <!-- 3D -->
+  <section data-tabs="3d">
+    <h2>3D の見方</h2>
+    <div class="grid2">
+      <label>左右に回す向き <select id="invX"><option value="0">ふつう</option><option value="1">逆</option></select></label>
+      <label>上下に回す向き <select id="invY"><option value="0">ふつう</option><option value="1">逆</option></select></label>
+    </div>
+    <label class="chk" hidden><input type="checkbox" id="scan3d" checked>スキャンを重ねる</label>
+  </section>
+
+  <!-- WiFi -->
+  <section data-tabs="wifi">
+    <h2>場所ごとの強さ</h2>
+    <div id="wList"><p class="hint small">「使う場所」でソファー・机・ベッドなどに印を置くと、ここに強さが並びます。</p></div>
+  </section>
+  <section data-tabs="wifi">
+    <h2>家のつくり</h2>
+    <label class="range">家の種類 <select id="wHouse"><option value="rc">マンション（外壁コンクリート）</option><option value="wood">木造の一戸建て</option></select></label>
+    <p class="hint small">壁ごとの材料は「壁」の道具で壁を押して変えられます。</p>
+    <details class="more"><summary>壁1枚で弱まる量</summary><div class="tablewrap"><table id="wMatTable"></table></div></details>
+  </section>
+
+  <!-- 搬入 -->
+  <section data-tabs="move">
+    <h2>運び方</h2>
+    <div class="grid2">
+      <label>運ぶ先 <select id="fTarget" aria-label="運ぶ先"></select></label>
+      <label>ぎりぎりの境目 <span class="unit"><input type="number" id="fMargin" min="0" max="50" step="1" inputmode="numeric"> cm</span></label>
+    </div>
+    <p class="hint small">運ぶ先は、図の部屋を押してもえらべます。境目は、両側のすき間の合計がこれより小さいと「ぎりぎり」にします。</p>
+    <div id="mNotes"></div>
+  </section>
+
+  <!-- 日差し -->
+  <section data-tabs="sun">
+    <h2>部屋ごとの日あたり</h2>
+    <div id="sList"></div>
+  </section>
+  <section data-tabs="sun">
+    <h2>場所とまわり</h2>
+    <div class="row">
+      <select id="sPref" aria-label="場所（都道府県）"></select>
+      <span id="sLatLon" class="dims" hidden><label>緯度<input type="number" id="sLat" step="0.001" inputmode="decimal"></label><label>経度<input type="number" id="sLon" step="0.001" inputmode="decimal"></label></span>
+    </div>
+    <div class="row">
+      <label class="range">ひさし・バルコニーの出 <input type="number" id="sEave" min="0" max="300" step="5" inputmode="numeric"> cm</label>
+      <button id="sBldg" class="chip">まわりの建物を置く</button>
+    </div>
+    <p class="hint small">住所や地図は使いません。まわりの建物は、置いたものだけを計算に入れます。</p>
+  </section>
+
+  <!-- どのタブでも -->
+  <section data-tabs="2d">
     <h2>保存</h2>
     <label class="chk"><input type="checkbox" id="autosave" checked>この端末に自動で保存する</label>
     <label class="chk"><input type="checkbox" id="saveImg" checked>画像もいっしょに保存する</label>
@@ -166,116 +227,75 @@
       <label class="btn"><input type="file" id="importFile" accept=".json,application/json" hidden>ファイルを読みこむ</label>
       <button id="reset" class="danger">最初から</button>
     </div>
-    <p class="hint small">ほかの端末へ移す・人に見せるときは、書き出したファイルを使ってください（サーバーには保存しません）。</p>
-  </section>
-
-  <section class="explain wifi-explain">
-    <h2>日差しについて</h2>
-    <details>
-      <summary>しくみ</summary>
-      <p>場所（緯度・経度）と日付・時刻から、太陽の高さと方位を計算します。床の上の点から太陽のほうへ光をさかのぼり、外の壁の窓（床からの高さ〜窓の上の端）を通って外へ出られれば、その点に日が当たっています。天井・窓のない壁・自分の家のほかの壁・ひさし・まわりの建物にさえぎられたら当たりません。</p>
-      <p>「1日の日あたり」は、10分ごとに同じことを調べて、床の 10cm 四方ごとに、日が当たる時間を足したものです。3D の光も、このタブを開いたあとは、えらんだ日付・時刻の太陽の向きになります（「部屋の中」で見ると、窓から入る日がわかります）。</p>
-      <p>北の向き（「家ぜんたい」）と何階か、窓の位置と大きさで結果が大きく変わります。間取り図の方位マークに合わせてください。</p>
-    </details>
-    <details>
-      <summary>簡単にしたところ</summary>
-      <ul>
-        <li>場所は都道府県庁の位置です（数字で入れることもできます）。時刻は日本時間です。地図は使わず、住所はどこにも送りません。</li>
-        <li>まわりの建物は、置いたものだけです（最初は何もない）。山や木、となりの部屋のバルコニーの仕切りなどは入っていません。床の高さは「何階」× 2.9m（<b class="est">目安</b>）としています。</li>
-        <li>ひさし・上の階のバルコニーは、どの窓の上にも同じ出があるとしています。窓のまわりの壁の厚みのかげ、カーテン・ガラスの色、雲は入っていません。</li>
-        <li>床に当たる日だけを見ています（壁や家具の上に当たる日は 3D で見てください）。</li>
-      </ul>
-    </details>
-    <details>
-      <summary>おもな出どころ（日差し）</summary>
-      <ul class="src">
-        <li>太陽の位置の式: NOAA Global Monitoring Laboratory「<a href="https://gml.noaa.gov/grad/solcalc/calcdetails.html" target="_blank" rel="noopener">Solar Calculation Details</a>」（J. Meeus, <i>Astronomical Algorithms</i> にもとづく式と、大気の屈折の補正）</li>
-        <li>都道府県庁の位置: 国土地理院「都道府県の庁舎及び東西南北端点の経緯度（世界測地系）」（<a href="https://uub.jp/pdr/s/cap_4.html" target="_blank" rel="noopener">都道府県データランキング</a>に載っている値で確かめました。2026-10-19）</li>
-      </ul>
-    </details>
-  </section>
-
-  <section class="explain wifi-explain">
-    <h2>家具の搬入について</h2>
-    <details>
-      <summary>しくみ</summary>
-      <p>家具を箱（幅・奥行き・高さ）として、どの面を下にするか（そのまま・幅を縦に・奥行きを縦に）ごとに調べます。床の上で、箱を前後左右に動かす・回すだけで、玄関の外から運ぶ先の部屋の中まで行けるかを、位置と向きを細かく区切って探します（位置は 2cm、向きは家具の大きさに合わせて数度きざみ）。</p>
-      <p>探すときは、まわりの壁とのすき間がいちばん大きい道を選びます。だから「いちばんせまい所」のすき間が、その寝かせ方でいちばん楽に通れる道の値です。すき間が両側あわせて境目（初めは 5cm）以上なら「入る」、0 より大きければ「ぎりぎり」、通れる道がなければ「入らない」です。</p>
-      <p>壁は模型の壁（厚さは「家ぜんたい」の値）です。通れるのはドア・引き戸・玄関で、箱の高さが開口の高さ以下のときだけです。窓や掃き出し窓からは運びません。</p>
-    </details>
-    <details>
-      <summary>簡単にしたところ</summary>
-      <ul>
-        <li>家具は箱です。ソファーの背もたれや脚の形は入れていません（いちばん外側の箱なので、本物より通りにくく出ます）。</li>
-        <li>運ぶ途中で立てなおす・ななめに傾けることは入れていません。持ち上げて手すりや家具の上を通すことも入れていません。</li>
-        <li>梱包・運ぶ人の手・巾木・ドアノブ・開いたドアの板・照明・廊下に置いた物は入っていません。そのぶんの余裕が「ぎりぎりの境目」です。</li>
-        <li>位置と向きを区切って調べるので、すき間は 1〜2cm 小さめに出ることがあります（安全より）。マスとマスの間で箱が壁をすり抜けないよう、動くぶんの余裕をとって道を探しています。</li>
-        <li>家具の大きさの例は、よくある大きさの<b class="est">目安</b>です（商品の値ではありません）。実際の家具の寸法を入れてください。</li>
-        <li>玄関の外（共用廊下など）は、家具が向きを変えられるだけの広さがあるとしています。</li>
-      </ul>
-    </details>
-  </section>
-
-  <section class="explain wifi-explain">
-    <h2>WiFi の置き場所について</h2>
-    <details>
-      <summary>しくみ</summary>
-      <p>模型の壁・ドア・窓を、床から 1m の高さで切った面の上に、0.75cm のマス目で並べます。そこにルーターから電波（波）を出し、壁を通りぬけたり、はね返ったり、重なり合ったりするようすを、波の式でそのまま計算します（FDTD という方法。まなびラボの<a href="https://sishiya.github.io/manabi-lab/wifi-wave/" target="_blank" rel="noopener">電波の見える部屋</a>と同じ計算です）。強さは、何もない所でルーターから同じ距離はなれたときの強さと比べて、dBm にしています。</p>
-      <p><b>おすすめの置き場所</b>は、電波の「ルーター→場所」と「場所→ルーター」が同じ強さになる性質（相反性）を使います。よく使う場所の印から1回ずつ波を出すと、家のどの点についても「ここにルーターを置いたら、その印でどれくらいか」がわかります。印の中でいちばん弱い値を「置き場所の良さ」として地図にし、部屋の中で壁から 30cm 以上はなれた所のうち、いちばん良い所に★をつけます。</p>
-      <p>壁の材料は、2つの部屋にはさまれた壁を間仕切り（石こうボード）、1つの部屋にしか面していない壁を外壁（マンションはコンクリート、木造は木）として決めます。なぞっていない廊下などに面した壁も外壁になるので、ちがうときは「壁の材料」で変えてください。ドア・引き戸は閉めた木、玄関は金属、窓はガラスです。</p>
-      <div class="tablewrap"><table id="wMatTable"></table></div>
-      <p class="small">表は、壁1枚にまっすぐ当たったときに弱まる量（解析の式）です。</p>
-    </details>
-    <details>
-      <summary>簡単にしたところ</summary>
-      <ul>
-        <li>床と平行な1枚の面（高さ 1m）だけで計算しています。上や下の階・天井・床・家具の形・壁の中の鉄筋や柱は入っていません。人の体も入れていません。</li>
-        <li>電波の向き（偏波）は1通り、周波数は1つ（2.4GHz はチャンネル6、5GHz はチャンネル40）です。ルーターの出力は 20dBm（目安）としています。</li>
-        <li>受信の強さの境目（−55・−67・−75・−85 dBm）と「動画も快適」などの言葉は<b class="est">目安</b>です。ルーターやスマホの機種、まわりの家の WiFi でも変わります。</li>
-        <li>壁の厚さは材料ごとに決めた値（上の表）を使い、模型の「壁の厚さ」は使いません。</li>
-        <li>冷蔵庫・テレビは金属の箱や板、浴槽のお湯と人は水として計算します。大きさは<b class="est">目安</b>です。浴槽のお湯は実際には高さ 1m より下にありますが、面の上にあるものとして計算するので、さえぎる量は多めに出ます。</li>
-        <li>中継機は、ルーターとは別のチャンネルで同じ強さ（20dBm）の電波を出すとして、場所ごとに強いほうをとります。実際の中継機は、ルーターとのやりとりにも電波を使うので速さが落ちます。ルーターとのつながりが −67 dBm より弱い所に置くと、とくに遅くなりやすいです（目安）。</li>
-        <li>1枚の面の中で計算するので、壁ではね返った電波が上や下へにげません。そのぶん部屋の中では、実際より少し強めに出ることがあります。同じ場所でも数 cm ずれると数 dB 変わる（波の重なり）ので、地図は約 6cm 四方でならしています。</li>
-        <li>電波の強さを示すもので、体への影響を示すものではありません。</li>
-      </ul>
-    </details>
-    <details>
-      <summary>おもな出どころ（電波）</summary>
-      <ul class="src">
-        <li>材料の性質（比誘電率・導電率）: ITU-R P.2040-3（2023）表3</li>
-        <li>自由空間の損失: ITU-R P.525</li>
-        <li>周波数: IEEE 802.11（2.4GHz 帯のチャンネル6＝2437MHz、5GHz 帯のチャンネル40＝5200MHz）</li>
-        <li>計算の方法（FDTD）: A. Taflove and S. C. Hagness, <i>Computational Electrodynamics: The Finite-Difference Time-Domain Method</i>, 3rd ed., Artech House, 2005</li>
-      </ul>
-    </details>
   </section>
 
   <section class="explain">
-    <details open>
+    <h2>このツールについて</h2>
+    <details>
       <summary>使い方</summary>
       <ol>
-        <li><b>なぞる</b>: 部屋の角を順に押します。線は自動で水平・垂直にそろいます（Shift を押している間ははずれます）。最初の角をもう一度押すか「部屋にする」で1部屋。となりの部屋の角には吸いつきます。間取り図の<b>壁の線のまん中</b>をなぞってください。</li>
-        <li><b>縮尺</b>: 部屋をえらんで帖を入れるか、「メジャー」でわかる長さ（ドアの幅・部屋の幅など）を2点で測り、長さを入れます。</li>
-        <li><b>ドア・窓</b>: 種類をえらび、壁を押して置きます。ドラッグで壁にそって動かせます。</li>
-        <li><b>3D</b>: 上の「3D」で模型を見ます。ドラッグで回す、ホイール・2本指で寄る、右ドラッグ・2本指で動かす。</li>
+        <li><b>図面</b>: 間取りの画像（または 3D スキャン）を下じきにして、部屋の角を順に押してなぞります。最初の角をもう一度押すと1部屋。線は水平・垂直にそろいます（「まっすぐ」を切ると自由な向き。Shift でも）。<b>壁の線のまん中</b>をなぞってください。部屋に帖を入れるか、「メジャー」で1か所測ると縮尺が決まります。「ドア・窓」で壁を押して置きます。</li>
+        <li><b>3D</b>: ドラッグで回す・ホイールか2本指で寄る・右ドラッグか2本指で動かす。「部屋の中」で中に立てます。</li>
+        <li><b>WiFi</b>: ルーターを置き、よく使う場所に印を置くと、強さとおすすめの置き場所がわかります。</li>
+        <li><b>搬入</b>: 家具の大きさと運ぶ先の部屋を決めて「調べる」。玄関の外から運びこめるかと、いちばんせまい所がわかります。</li>
+        <li><b>日差し</b>: ▶ で1日の日の入り方が動きます。冬至・夏至でくらべられます。3D でも見られます。</li>
       </ol>
-      <p class="small">図面の上では、ホイールや2本指で拡大、「動かす」の道具で何もない所をドラッグすると移動します。角はドラッグで動かせます。</p>
+      <p class="small">まちがえたら、上の右の ↶（元に戻す・Ctrl+Z）で戻せます。消したときも、知らせの「元に戻す」で戻せます。</p>
     </details>
     <details>
-      <summary>しくみ</summary>
-      <p><b>壁を自動で見つける</b>ときは、断面の線でいちばん多い向きに壁がそろうよう下じきを回し、床の面（上を向いた低い面）をマス目（2.5cm）に塗ります。天井の少し下の断面を壁として床を分けると、ドアの上は壁がつながっているので、部屋ごとに分かれます。部屋ごとの外まわりを縦横の辺にして（15cm より小さい段はならす）、壁の厚さの半分だけ外へずらして壁の中心線にします。壁の厚さは、となりの部屋との間の幅から測ります。ドア・窓は、高さ 1m では壁がなく天井の近くでは壁がある所を探し、5cm ごとの高さで開いている範囲を測ります。</p>
-      <p><b>3D スキャン</b>（OBJ・glTF の .glb・PLY）は、このブラウザの中で読み、床から決めた高さ（初めは 1m）で切った断面を上から見た図にして下じきにします。床の高さは、上を向いた面の低いほうから見つけます。スキャンは m 単位なので、そのまま縮尺になります。USDZ はまだ読めません（OBJ・glb・PLY で書き出してください）。圧縮された glTF（Draco など）も読めません。</p>
+      <summary>図面と 3D スキャンのしくみ</summary>
       <p>なぞった角の位置は、画像のピクセルで覚えています。縮尺（1ピクセルが何 m か）は、メジャーの値があれば「測った長さ ÷ 図の上の長さ」（何本かあれば平均）、なければ「帖 × 1.62㎡ ÷ 図の上の面積」から決めます。不動産の広告では、帖は<b>壁の中心線で測った面積</b>を 1.62㎡ 以上として数えるルールなので、なぞるのも壁の線のまん中にしています。</p>
       <p>壁は、部屋の辺のうち同じ直線の上にあるものを1本にまとめて作ります（となりの部屋との壁が2重にならないように）。ドアや窓は、その壁から幅の分を抜き、窓は下の壁（腰の高さまで）と上の壁を残します。</p>
+      <p><b>3D スキャン</b>（OBJ・glTF の .glb・PLY）は、このブラウザの中で読み、床から決めた高さ（初めは 1m）で切った断面を上から見た図にして下じきにします。スキャンは m 単位なので、そのまま縮尺になります。USDZ と、圧縮された glTF（Draco など）はまだ読めません。</p>
+      <p><b>壁を自動で見つける</b>ときは、断面の線でいちばん多い向きに壁がそろうよう下じきを回し、床の面をマス目（2.5cm）に塗ります。天井の少し下の断面を壁として床を分けると、ドアの上は壁がつながっているので、部屋ごとに分かれます。部屋ごとの外まわりを縦横の辺にして（15cm より小さい段はならす）、壁の厚さの半分だけ外へずらして壁の中心線にします。壁の厚さは、となりの部屋との間の幅から測ります。ドア・窓は、高さ 1m では壁がなく天井の近くでは壁がある所を探し、5cm ごとの高さで開いている範囲を測ります。</p>
+    </details>
+    <details>
+      <summary>WiFi のしくみ</summary>
+      <p>模型の壁・ドア・窓を、床から 1m の高さで切った面の上に、0.75cm のマス目で並べます。そこにルーターから電波（波）を出し、壁を通りぬけたり、はね返ったり、重なり合ったりするようすを、波の式でそのまま計算します（FDTD という方法。まなびラボの<a href="https://sishiya.github.io/manabi-lab/wifi-wave/" target="_blank" rel="noopener">電波の見える部屋</a>と同じ計算です）。強さは、何もない所でルーターから同じ距離はなれたときの強さと比べて、dBm にしています。</p>
+      <p><b>おすすめの置き場所</b>は、電波の「ルーター→場所」と「場所→ルーター」が同じ強さになる性質（相反性）を使います。よく使う場所の印から1回ずつ波を出すと、家のどの点についても「ここにルーターを置いたら、その印でどれくらいか」がわかります。印の中でいちばん弱い値を「置き場所の良さ」として地図にし、部屋の中で壁から 30cm 以上はなれた所のうち、いちばん良い所に★をつけます。</p>
+      <p>壁の材料は、2つの部屋にはさまれた壁を間仕切り（石こうボード）、1つの部屋にしか面していない壁を外壁（マンションはコンクリート、木造は木）として決めます。ドア・引き戸は閉めた木、玄関は金属、窓はガラスです。</p>
+    </details>
+    <details>
+      <summary>搬入のしくみ</summary>
+      <p>家具を箱（幅・奥行き・高さ）として、どの面を下にするか（そのまま・幅を縦に・奥行きを縦に）ごとに調べます。床の上で、箱を前後左右に動かす・回すだけで、玄関の外から運ぶ先の部屋の中まで行けるかを、位置と向きを細かく区切って探します（位置は 2cm、向きは家具の大きさに合わせて数度きざみ）。</p>
+      <p>探すときは、まわりの壁とのすき間がいちばん大きい道を選びます。だから「いちばんせまい所」のすき間が、その寝かせ方でいちばん楽に通れる道の値です。すき間が両側あわせて境目（初めは 5cm）以上なら「入る」、0 より大きければ「ぎりぎり」、通れる道がなければ「入らない」です。通れるのはドア・引き戸・玄関で、箱の高さが開口の高さ以下のときだけです。窓や掃き出し窓からは運びません。</p>
+    </details>
+    <details>
+      <summary>日差しのしくみ</summary>
+      <p>場所（緯度・経度）と日付・時刻から、太陽の高さと方位を計算します。床の上の点から太陽のほうへ光をさかのぼり、外の壁の窓（床からの高さ〜窓の上の端）を通って外へ出られれば、その点に日が当たっています。天井・窓のない壁・自分の家のほかの壁・ひさし・まわりの建物にさえぎられたら当たりません。「1日の日あたり」は、10分ごとに同じことを調べて、床の 10cm 四方ごとに日が当たる時間を足したものです。</p>
+      <p>3D では、壁は低く見せたまま、天井まである壁と天井で影を作り、窓から入る日を床と壁に映します。北の向き・何階か・窓の位置と大きさで結果が大きく変わります。</p>
     </details>
     <details>
       <summary>簡単にしたところ</summary>
+      <h3>図面</h3>
       <ul>
         <li>壁の厚さはどこも同じです（家ぜんたいで変えられます）。床は水平、天井はどの部屋も同じ高さです。</li>
         <li>帖から出した縮尺は<b class="est">推定</b>です。1帖の広さは物件によって 1.62㎡ より広いこともあるので、メジャーで1か所測ると確かになります。</li>
-        <li>測っていない寸法は、ふつうの値を<b class="est">推定</b>として使います。ドアの幅は国の指針の「最低これくらい」、窓の大きさはサッシの規格の1つで、どの家もこの大きさとはかぎりません。天井の高さ（2.4m）・壁の厚さ（12cm）・ドアの高さ（2.0m）・窓の床からの高さ（90cm）は<b class="est">目安</b>です（規格や法律の値ではありません）。測った値に置きかえてください。</li>
+        <li>測っていない寸法は、ふつうの値を<b class="est">推定</b>として使います。ドアの幅は国の指針の「最低これくらい」、窓の大きさはサッシの規格の1つで、どの家もこの大きさとはかぎりません。天井の高さ（2.4m）・壁の厚さ（12cm）・ドアの高さ（2.0m）・窓の床からの高さ（90cm）は<b class="est">目安</b>です（規格や法律の値ではありません）。</li>
         <li>ドアの「幅」は通れる幅（有効幅）、窓の幅・高さは内のりです。壁はこの幅で抜いていて、枠の厚みは入れていません。</li>
         <li>3D の影は、はじめは見やすくするための光です（※ 目印。本物の太陽の向きではありません）。「日差し」のタブを開いたあとは、えらんだ日付・時刻の太陽の向きになります。</li>
+      </ul>
+      <h3>WiFi</h3>
+      <ul>
+        <li>床と平行な1枚の面（高さ 1m）だけで計算しています。上や下の階・天井・床・家具の形・壁の中の鉄筋や柱は入っていません。</li>
+        <li>電波の向き（偏波）は1通り、周波数は1つ（2.4GHz はチャンネル6、5GHz はチャンネル40）です。ルーターの出力は 20dBm（目安）としています。</li>
+        <li>受信の強さの境目（−55・−67・−75・−85 dBm）と「動画も快適」などの言葉は<b class="est">目安</b>です。ルーターやスマホの機種、まわりの家の WiFi でも変わります。</li>
+        <li>壁の厚さは材料ごとに決めた値を使い、模型の「壁の厚さ」は使いません。冷蔵庫・テレビは金属の箱や板、浴槽のお湯と人は水として計算します（大きさは<b class="est">目安</b>。浴槽のお湯は本当は 1m より下なので、さえぎる量は多めに出ます）。</li>
+        <li>中継機は、ルーターとは別のチャンネルで同じ強さの電波を出すとして、場所ごとに強いほうをとります。実際の中継機はルーターとのやりとりにも電波を使うので速さが落ちます（ルーターとのつながりが −67 dBm より弱いと、とくに。目安）。</li>
+        <li>1枚の面の中で計算するので、はね返った電波が上や下へにげず、部屋の中では実際より少し強めに出ることがあります。地図は約 6cm 四方でならしています。</li>
+        <li>電波の強さを示すもので、体への影響を示すものではありません。</li>
+      </ul>
+      <h3>搬入</h3>
+      <ul>
+        <li>家具は箱です（いちばん外側の箱なので、本物より通りにくく出ます）。運ぶ途中で立てなおす・ななめに傾ける・持ち上げて物の上を通すことは入れていません。</li>
+        <li>梱包・運ぶ人の手・巾木・ドアノブ・開いたドアの板・照明・廊下に置いた物は入っていません。そのぶんの余裕が「ぎりぎりの境目」です。</li>
+        <li>位置と向きを区切って調べるので、すき間は 1〜2cm 小さめに出ることがあります（安全より）。玄関の外は、向きを変えられるだけの広さがあるとしています。家具の大きさの例は<b class="est">目安</b>です（商品の値ではありません）。</li>
+      </ul>
+      <h3>日差し</h3>
+      <ul>
+        <li>場所は都道府県庁の位置です（数字で入れることもできます）。時刻は日本時間です。</li>
+        <li>まわりの建物は、置いたものだけです。山や木、となりのバルコニーの仕切りなどは入っていません。床の高さは「何階」× 2.9m（<b class="est">目安</b>）。</li>
+        <li>ひさし・上の階のバルコニーは、どの窓の上にも同じ出があるとしています。窓のまわりの壁の厚みのかげ、カーテン・ガラスの色、雲は入っていません。</li>
       </ul>
     </details>
     <details>
@@ -285,6 +305,9 @@
         <li>ドアの幅 75cm・玄関の幅 80cm: <a href="https://www.mlit.go.jp/notice/noticedata/sgml/2001/26aa2661/26aa2661.html" target="_blank" rel="noopener">高齢者が居住する住宅の設計に係る指針</a>（平成13年国土交通省告示第1301号）の、住戸内の出入口の有効幅員（基本レベル 750mm 以上・推奨レベル 800mm 以上）。</li>
         <li>窓の幅 165cm・高さ 110cm、掃き出し窓の高さ 200cm: <a href="https://www.jsma.or.jp/Portals/0/images/useful/houreikijun/kikakusunpo(20210426).pdf" target="_blank" rel="noopener">日本サッシ協会「標準規格寸法」</a>（2021年4月）の、内のり高さの基準寸法と、関東間の幅 1650mm の例。</li>
         <li>居室の天井の高さは 2.1m 以上（建築基準法施行令 第21条）。2.4m はそれより高い目安です。</li>
+        <li>電波の材料の性質（比誘電率・導電率）: ITU-R P.2040-3（2023）表3。自由空間の損失: ITU-R P.525。周波数: IEEE 802.11（2.4GHz 帯のチャンネル6＝2437MHz、5GHz 帯のチャンネル40＝5200MHz）。計算の方法（FDTD）: A. Taflove and S. C. Hagness, <i>Computational Electrodynamics: The Finite-Difference Time-Domain Method</i>, 3rd ed., Artech House, 2005。</li>
+        <li>太陽の位置の式: NOAA Global Monitoring Laboratory「<a href="https://gml.noaa.gov/grad/solcalc/calcdetails.html" target="_blank" rel="noopener">Solar Calculation Details</a>」（J. Meeus, <i>Astronomical Algorithms</i> にもとづく式と、大気の屈折の補正）。</li>
+        <li>都道府県庁の位置: 国土地理院「都道府県の庁舎及び東西南北端点の経緯度（世界測地系）」（<a href="https://uub.jp/pdr/s/cap_4.html" target="_blank" rel="noopener">都道府県データランキング</a>に載っている値で確かめました。2026-10-19）。</li>
       </ul>
     </details>
     <details>
@@ -295,26 +318,26 @@
     </details>
     <details>
       <summary>入力したものについて</summary>
-      <p>間取りの画像・寸法・模型は、このブラウザの中だけで計算します。保存はこの端末（ブラウザの保存領域）と、書き出したファイルだけです。どこにも送信しません。「最初から」で端末の保存も消えます。</p>
+      <p>間取りの画像・スキャン・寸法・模型は、このブラウザの中だけで計算します。保存はこの端末（ブラウザの保存領域）と、書き出したファイルだけです。どこにも送信しません。「最初から」で端末の保存も消えます。</p>
       <p class="small">公開しているページでは、どのページが見られたかを知るためにアクセス解析（Google アナリティクス）を使っています。入力したもの（画像・寸法・模型）は記録に入りません。くわしくは <a href="../#analytics">くらしラボの入口</a> に書いています。</p>
     </details>
   </section>
   <p class="foot"><a href="../">くらしラボ</a> ・ <a href="https://github.com/sishiya/kurashi-lab" target="_blank" rel="noopener">ソースコード</a></p>
 </main>
 </div>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastUndo" hidden>元に戻す</button></div>
 
 <script src="../lib/three@0.128.0/build/three.min.js"></script>
-<script src="js/model.js?v=7"></script>
-<script src="js/plan.js?v=6"></script>
-<script src="js/view3d.js?v=7"></script>
-<script src="js/wifi-sim.js?v=4"></script>
-<script src="js/wifi.js?v=5"></script>
-<script src="js/move.js?v=4"></script>
-<script src="js/sun.js?v=2"></script>
-<script src="js/scan.js?v=5"></script>
-<script src="js/scan-walls.js?v=4"></script>
-<script src="js/ui.js?v=8"></script>
-<script src="js/main.js?v=4"></script>
+<script src="js/model.js?v=8"></script>
+<script src="js/plan.js?v=9"></script>
+<script src="js/view3d.js?v=8"></script>
+<script src="js/wifi-sim.js?v=5"></script>
+<script src="js/wifi.js?v=6"></script>
+<script src="js/move.js?v=7"></script>
+<script src="js/sun.js?v=4"></script>
+<script src="js/scan.js?v=6"></script>
+<script src="js/scan-walls.js?v=5"></script>
+<script src="js/ui.js?v=13"></script>
+<script src="js/main.js?v=5"></script>
 </body>
 </html>

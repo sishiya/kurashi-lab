@@ -215,14 +215,16 @@ function buildWalls() {
 }
 
 // ---------- 元に戻す ----------
+// 模型と下じきの画像をいっしょに覚える（最初から・見本・画像の入れかえも戻せるように。画像は同じものを指すだけ）
 const HIST = [], REDO = [];
-function snapshot() { return JSON.stringify(M); }
+function snapshot() { return { m: JSON.stringify(M), img: IMG }; }
+function restore(sn) { M = JSON.parse(sn.m); IMG = sn.img; }
 function commit() {          // 変更の「前」に呼ぶ
   HIST.push(snapshot()); if (HIST.length > 80) HIST.shift();
   REDO.length = 0;
 }
-function undo() { if (!HIST.length) return false; REDO.push(snapshot()); M = JSON.parse(HIST.pop()); return true; }
-function redo() { if (!REDO.length) return false; HIST.push(snapshot()); M = JSON.parse(REDO.pop()); return true; }
+function undo() { if (!HIST.length) return false; REDO.push(snapshot()); restore(HIST.pop()); return true; }
+function redo() { if (!REDO.length) return false; HIST.push(snapshot()); restore(REDO.pop()); return true; }
 
 // ---------- 保存（この端末と、ファイル。外には送らない） ----------
 const STORE_KEY = 'kurashi.my-room.v1';

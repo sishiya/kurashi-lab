@@ -267,30 +267,32 @@ function wifiRender() {
   document.querySelectorAll('[data-freq]').forEach(b => b.classList.toggle('on', b.dataset.freq === M.wifi.freq));
   $('wHouse').value = M.wifi.house;
   document.querySelectorAll('[data-wview]').forEach(b => { b.classList.toggle('on', b.dataset.wview === WS.view); b.disabled = b.dataset.wview === 'good' && !WS.good; });
-  let html = '';
+  let html = '', list = '';
+  const vals = M.wifi.router ? spotValues() : null;
+  if (vals && vals.length) {            // 右の欄: 場所ごとの強さ（くわしく）
+    const many = sources().length > 1;
+    list = '<ul class="wlist">' + vals.map(v => { const j = judge(v.db); return `<li><span class="lv lv${j[0]}">${'▮'.repeat(j[0])}${'▯'.repeat(4 - j[0])}</span><b>${esc(v.sp.name)}</b> ${v.db.toFixed(0)} dBm ${j[1]}${many ? `（${esc(v.src.name)}から）` : ''}<span class="why">${esc(wallsText(v.walls))}</span></li>`; }).join('') +
+      sources().slice(1).map(x => { const l = extLink(x); return l == null ? '' : `<li class="ext"><b>${esc(x.name)}</b>とルーターのつながり ${l.toFixed(0)} dBm ${judge(l)[1]}${l < -67 ? '<span class="why">−67 dBm より弱いと、中継の速さが落ちやすい（目安）</span>' : ''}</li>`; }).join('') + '</ul>';
+  } else list = '<p class="hint small">「使う場所」でソファー・机・ベッドなどに印を置くと、ここに強さが並びます。</p>';
+  // 図の下: いまの結果のひとこと
   if (WS.running) html = `<div class="wprog"><span>${esc(WS.progText)}…</span><button id="wStop">やめる</button><div class="bar"><i id="wProg"></i></div></div>`;
   else if (WS.msg) html = `<p class="wmsg">${esc(WS.msg)}</p>`;
-  else if (!M.rooms.length) html = '<p class="wmsg">先に「図面」で部屋をなぞってください。</p>';
-  else if (!M.wifi.router) html = '<p class="wmsg">ルーターを置きたい所を押してください。</p>';
-  else {
-    const vals = spotValues();
-    if (WS.view === 'good' && WS.best) {
-      const cur = vals && vals.length ? Math.min(...vals.map(v => v.db)) : null;
-      html = `<p class="wsum">おすすめの置き場所（★）: いちばん弱い場所でも <b>約 ${WS.best.v.toFixed(0)} dBm</b>（${judge(WS.best.v)[1]}）` +
-        (cur != null ? `。いまは ${cur.toFixed(0)} dBm（${WS.best.v - cur >= 0 ? '+' : '−'}${Math.abs(WS.best.v - cur).toFixed(0)} dB）` : '') +
-        (M.wifi.ext.length ? '。★はルーター1台だけのときの場所です' : '') +
-        ` <button id="wMove" class="pri">ここに置く</button></p>`;
-    } else if (vals && vals.length) {
-      const many = sources().length > 1;
-      html = '<ul class="wlist">' + vals.map(v => { const j = judge(v.db); return `<li><span class="lv lv${j[0]}">${'▮'.repeat(j[0])}${'▯'.repeat(4 - j[0])}</span><b>${esc(v.sp.name)}</b> ${v.db.toFixed(0)} dBm ${j[1]}${many ? `（${esc(v.src.name)}から）` : ''}<span class="why">${esc(wallsText(v.walls))}</span></li>`; }).join('') +
-        sources().slice(1).map(x => { const l = extLink(x); return l == null ? '' : `<li class="ext"><b>${esc(x.name)}</b>とルーターのつながり ${l.toFixed(0)} dBm ${judge(l)[1]}${l < -67 ? '<span class="why">−67 dBm より弱いと、中継の速さが落ちやすい（目安）</span>' : ''}</li>`; }).join('') + '</ul>';
-    } else if (vals) html = '<p class="wmsg">「よく使う場所」に印を置くと、そこでの強さと、おすすめの置き場所がわかります。</p>';
-    else html = '<p class="wmsg">計算を待っています。</p>';
-  }
+  else if (!M.wifi.router) html = '<p class="wmsg">まず、ルーターを置きたい所を図の上で押してください。</p>';
+  else if (WS.view === 'good' && WS.best) {
+    const cur = vals && vals.length ? Math.min(...vals.map(v => v.db)) : null;
+    html = `<p class="wsum">★ がおすすめ: いちばん弱い場所でも <b>約 ${WS.best.v.toFixed(0)} dBm</b>（${judge(WS.best.v)[1]}）` +
+      (cur != null ? `。いまより ${WS.best.v - cur >= 0 ? '+' : '−'}${Math.abs(WS.best.v - cur).toFixed(0)} dB` : '') +
+      (M.wifi.ext.length ? '（ルーター1台のとき）' : '') + ` <button id="wMove" class="pri">ここに置く</button></p>`;
+  } else if (vals && vals.length) {
+    const w = vals.reduce((a, v) => v.db < a.db ? v : a), j = judge(w.db);
+    html = `<p class="wsum"><span class="lv lv${j[0]}">${'▮'.repeat(j[0])}${'▯'.repeat(4 - j[0])}</span> いちばん弱いのは <b>${esc(w.sp.name)}</b> ${w.db.toFixed(0)} dBm（${j[1]}）</p>`;
+  } else if (vals) html = '<p class="wmsg">「使う場所」でよく使う所に印を置くと、強さとおすすめの置き場所がわかります。</p>';
+  else html = '<p class="wmsg">計算を待っています。</p>';
+  $('wList').innerHTML = list;
   $('wBody').innerHTML = html;
   if ($('wStop')) $('wStop').onclick = wifiStop;
-  if ($('wMove')) $('wMove').onclick = () => edit(() => { M.wifi.router = WS.best.p.slice(); });
-  $('wFind').disabled = WS.running || !M.wifi.spots.length;
+  if ($('wMove')) $('wMove').onclick = () => edit(() => { M.wifi.router = WS.best.p.slice(); }, 'ルーターを★の所へ動かしました');
+  $('wFind').disabled = WS.running;   // 印がないときは押すと理由と道具の切りかえ（wifiFindBest）
   wifiProg();
   renderWifiTable();
 }
@@ -313,7 +315,7 @@ function wifiSel(bar, s) {
     bar.innerHTML = `<span class="k">よく使う場所</span><label>名前 <input type="text" id="sName" value="${esc(sp.name)}" maxlength="12"></label>
       ${v ? `<span class="note">${v.db.toFixed(0)} dBm（${judge(v.db)[1]}）・${esc(wallsText(v.walls))}</span>` : ''}<button id="sDel" class="danger">消す</button>`;
     $('sName').onchange = e => edit(() => { sp.name = e.target.value.trim() || sp.name; });
-    $('sDel').onclick = () => edit(() => { M.wifi.spots = M.wifi.spots.filter(x => x !== sp); P.sel = null; });
+    $('sDel').onclick = () => edit(() => { M.wifi.spots = M.wifi.spots.filter(x => x !== sp); P.sel = null; }, `「${sp.name}」を消しました`);
     return true;
   }
   if (s.type === 'wall') {
@@ -337,7 +339,7 @@ function wifiSel(bar, s) {
     const e = byId(M.wifi.ext, s.id); if (!e) return false;
     const l = extLink(e);
     bar.innerHTML = `<span class="k">中継機</span><span class="note">${l == null ? 'ルーターとのつながりは計算のあとに出ます' : `ルーターとのつながり ${l.toFixed(0)} dBm（${judge(l)[1]}）。−67 dBm より弱いと中継の速さが落ちやすい（目安）`}</span><button id="sDel" class="danger">外す</button>`;
-    $('sDel').onclick = () => edit(() => { M.wifi.ext = M.wifi.ext.filter(x => x !== e); P.sel = null; });
+    $('sDel').onclick = () => edit(() => { M.wifi.ext = M.wifi.ext.filter(x => x !== e); P.sel = null; }, '中継機を外しました');
     return true;
   }
   if (s.type === 'item') {
@@ -348,12 +350,12 @@ function wifiSel(bar, s) {
       <span class="note">${WMAT[d.mat].name}として計算・${Math.round(d.w * 100)}×${Math.round(d.d * 100)}cm（目安）</span>`;
     $('sItem').onchange = e => edit(() => { it.kind = e.target.value; });
     $('sRot').onclick = () => edit(() => { it.rot = ((it.rot || 0) + 90) % 360; });
-    $('sDel').onclick = () => edit(() => { M.wifi.items = M.wifi.items.filter(x => x !== it); P.sel = null; });
+    $('sDel').onclick = () => edit(() => { M.wifi.items = M.wifi.items.filter(x => x !== it); P.sel = null; }, `${d.name}を消しました`);
     return true;
   }
   if (s.type === 'router') {
     bar.innerHTML = `<span class="k">ルーター</span><span class="note">ドラッグで動かせます。出力は 20dBm（目安）・${WF.FREQ[M.wifi.freq].name}</span><button id="sDel" class="danger">外す</button>`;
-    $('sDel').onclick = () => edit(() => { M.wifi.router = null; P.sel = null; });
+    $('sDel').onclick = () => edit(() => { M.wifi.router = null; P.sel = null; }, 'ルーターを外しました');
     return true;
   }
   return false;

@@ -116,8 +116,8 @@ async function moveRun() {
   const okr = results.filter(r => r.ok).sort((p, q) => q.clear - p.clear);
   MV.res = { results, best: okr[0] || null, ent };
   MV.pick = MV.res.results.indexOf(okr[0] || results.find(r => r.path) || results[0]);
-  MV.key = key; MV.t = MV.res.best ? 1 : 0;
-  moveRender(); requestDraw();
+  MV.key = key; MV.t = 0;
+  moveRender(); requestDraw(); movePlay(true);   // 結果が出たら、玄関から運ぶようすを1回見せる
 }
 
 // ---------- 結果 ----------
@@ -154,36 +154,45 @@ function moveRender() {
   const tg = $('fTarget');
   tg.innerHTML = '<option value="">運ぶ先をえらぶ</option>' + M.rooms.map(r => `<option value="${r.id}"${r.id === M.move.target ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
   $('mRun').disabled = MV.running;
-  let html = '';
+  let html = '', notes = [];
   const stale = MV.res && MV.key !== moveKey();
   if (MV.running) html = `<div class="wprog"><span>${esc(MV.prog)}…<span id="mProgN"></span></span><button id="mStop">やめる</button></div>`;
   else if (MV.msg) html = `<p class="wmsg">${esc(MV.msg)}</p>`;
-  else if (!MV.res || stale) html = `<p class="wmsg">${stale ? '家具か模型が変わりました。もう一度「調べる」を押してください。' : '家具の大きさと運ぶ先を決めて「調べる」を押すと、玄関の外から運びこめるかを調べます。'}</p>`;
+  else if (!M.move.target) html = '<p class="wmsg">運ぶ先の部屋を、図の上で押してください。</p>';
+  else if (!MV.res || stale) html = `<p class="wmsg">${stale ? '家具か模型が変わりました。もう一度「調べる」を押してください。' : '「調べる」を押すと、玄関の外から運びこめるかを調べます。'}</p>`;
   else {
     const R = MV.res, r = R.results[MV.pick], v = verdict(R.best);
     const bn = bottleneck(r);
     html = `<p class="mv mv-${v.k}"><b>${v.text}</b>` +
-      (R.best ? `　${esc(R.best.label)}（高さ ${Math.round(R.best.hgt * 100)}cm）で運ぶと、いちばんせまい所のすき間は両側あわせて約 ${Math.max(0, Math.floor(R.best.clear * 200))}cm` +
-        (v.k === 'tight' ? `（余裕 ${Math.round(M.move.margin * 100)}cm まで、あと ${Math.ceil((M.move.margin - R.best.clear * 2) * 100)}cm）` : '')
-        : '　どの寝かせ方でも、玄関から運ぶ先まで通れませんでした。赤い × の所でつかえます。') + '</p>';
+      (R.best ? `${esc(R.best.label)}（高さ ${Math.round(R.best.hgt * 100)}cm）で、いちばんせまい所のすき間は約 ${Math.max(0, Math.floor(R.best.clear * 200))}cm（両側）` +
+        (v.k === 'tight' ? `。余裕 ${Math.round(M.move.margin * 100)}cm まであと ${Math.ceil((M.move.margin - R.best.clear * 2) * 100)}cm` : '')
+        : 'どの寝かせ方でも通れません。赤い × の所でつかえます') + '</p>';
     html += '<div class="mori">' + R.results.map((x, i) => { const vv = verdict(x); return `<button data-pick="${i}" class="chip${i === MV.pick ? ' on' : ''}">${esc(x.label)}・${vv.text}${x.ok ? ` ${Math.floor(x.clear * 200)}cm` : x.why ? '（天井）' : ''}</button>`; }).join('') + '</div>';
-    if (r.path && r.path.length > 1) html += `<label class="range mslide">運ぶようす <input type="range" id="mT" min="0" max="1000" value="${Math.round(MV.t * 1000)}"></label>`;
+    if (r.path && r.path.length > 1) html += `<div class="mslide"><button id="mPlay" class="play" aria-label="運ぶようすを再生"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MV.anim ? 'M6 4h4v16H6zM14 4h4v16h-4z' : 'M7 4v16l13-8z'}"/></svg></button><input type="range" id="mT" min="0" max="1000" value="${Math.round(MV.t * 1000)}" aria-label="運ぶようす"></div>`;
     const est = crossedGaps(r).filter(o => !o.w);
-    const notes = [];
     if (r.why) notes.push(r.why + 'ので、この寝かせ方は試していません。');
     if (r.timeout) notes.push('時間がかかりすぎたので、とちゅうでやめました。');
     if (est.length) notes.push(`通るドアのうち ${est.length}か所の幅が推定です。メジャーで測って「図面」で入れると確かになります。`);
     if (scaleEst()) notes.push('縮尺が推定です（帖から）。1か所メジャーで測ると確かになります。');
     if (bn && r.ok) notes.push('黄色い丸がいちばんせまい所です。');
-    html += notes.map(n => `<p class="why">${esc(n)}</p>`).join('');
   }
   $('mBody').innerHTML = html;
+  $('mNotes').innerHTML = notes.map(n => `<p class="why">${esc(n)}</p>`).join('');   // 注意は右の欄へ
   if ($('mStop')) $('mStop').onclick = moveStop;
   document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { MV.pick = +b.dataset.pick; MV.t = MV.res.results[MV.pick].ok ? 1 : 0; moveRender(); requestDraw(); });
-  if ($('mT')) $('mT').oninput = e => { MV.t = e.target.value / 1000; requestDraw(); };
+  if ($('mT')) $('mT').oninput = e => { movePlay(false); MV.t = e.target.value / 1000; requestDraw(); };
+  if ($('mPlay')) $('mPlay').onclick = () => movePlay(!MV.anim);
   moveProg();
 }
-function moveHint() { return '運ぶ先の部屋を押してから「調べる」。結果が出たら、つまみで玄関から運ぶようすを動かせます。'; }
+function moveHint() { return ''; }   // 図の下の結果のひとことが、いまやることも言う（同じ意味の文を2つ並べない）
+// 運ぶようすを再生（玄関の外 → 運ぶ先。4 秒）
+function movePlay(on) {
+  if (!on) { if (MV.anim) { cancelAnimationFrame(MV.anim); MV.anim = 0; moveRender(); } return; }
+  if (MV.t >= 0.999) MV.t = 0;
+  let last = performance.now();
+  const tick = now => { MV.t = Math.min(1, MV.t + (now - last) / 4000); last = now; const el = $('mT'); if (el) el.value = Math.round(MV.t * 1000); requestDraw(); MV.anim = MV.t < 1 ? requestAnimationFrame(tick) : 0; if (!MV.anim) moveRender(); };
+  MV.anim = requestAnimationFrame(tick); moveRender();
+}
 
 // 道の上の位置 t（0〜1）の箱（m）
 function pathAt(path, t) {
@@ -198,6 +207,10 @@ function pathAt(path, t) {
 P.exts.push({
   tools: ['target'],
   active: moveOn,
+  fitPts() {                 // 全体に合わせるとき、玄関の外（箱のはじめの場所）も入れる
+    const e = entranceInfo(Math.max(M.move.w, M.move.d)); if (!e) return [];
+    const s = scaleInfo().s; return e.porch.map(p => [p[0] / s, p[1] / s]);
+  },
   down(p) {
     const r = [...M.rooms].reverse().find(x => inPoly(p, x.pts));
     if (r) edit(() => { M.move.target = r.id; });
