@@ -9,7 +9,7 @@ Copyright (c) 2026 sishiya
 ・作者（sishiya / くらしラボ）の表示をすれば、共有・改変してかまいません。
   仕事や家庭でツールを使うこと、その結果（計算の答え・図・模型）を使うのは自由です。
 ・営利目的では使えません（販売、有料アプリ・有料サービスへの組みこみ、広告収入を
-  目的とした再配布など）。営利で使いたいときは作者に相談してください。
+  目的とした再配布など）。営利で使いたいときは作者に相談してください（sishiya-support@googlegroups.com）。
 
 ■ 中身にあたるもの
   - ツールの名前、タイトルのロゴ
@@ -36,5 +36,6 @@ thumbnails, sounds, videos and documents such as PLAN.md and DEVNOTES.md, even
 when written inside program files) is licensed under the Creative Commons
 Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0):
 https://creativecommons.org/licenses/by-nc/4.0/
+For commercial use, please contact sishiya-support@googlegroups.com.
 The program logic itself is licensed under the MIT License (see LICENSE).
 Third-party libraries and data keep their own licenses.
